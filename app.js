@@ -532,7 +532,44 @@ window.addEventListener('resize', scalePreview);
    the browser render the text natively, so Arabic comes out
    correctly joined. Always exports at a fixed A4 pixel size —
    fitContentToPage() already guarantees the content fits.
+
+   html-to-image's *automatic* font embedding scans the page's
+   stylesheets for @font-face rules and inlines them — but that
+   scan silently fails on a cross-origin stylesheet like Google
+   Fonts (reading its CSSOM rules throws), so the export quietly
+   falls back to a generic system font. To fix this reliably we
+   fetch the Google Fonts CSS + font files ourselves, inline them
+   as base64, and hand that CSS to html-to-image explicitly via
+   the `fontEmbedCss` option instead of relying on auto-detection.
    ============================================================ */
+const GOOGLE_FONTS_CSS_URL = "https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@300;400;500;600;700;800;900&display=swap";
+let cachedFontEmbedCss = null;
+
+async function buildFontEmbedCss(){
+  if(cachedFontEmbedCss) return cachedFontEmbedCss;
+  const cssText = await fetch(GOOGLE_FONTS_CSS_URL).then(r => r.text());
+  const fontUrls = [...cssText.matchAll(/url\((https:\/\/[^)]+)\)/g)].map(m => m[1]);
+
+  let embedded = cssText;
+  await Promise.all(fontUrls.map(async (url) => {
+    try{
+      const blob = await fetch(url).then(r => r.blob());
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      embedded = embedded.split(url).join(dataUrl);
+    } catch(e){
+      console.warn('Could not embed font file, export may fall back for it:', url, e);
+    }
+  }));
+
+  cachedFontEmbedCss = embedded;
+  return embedded;
+}
+
 $('downloadBtn').addEventListener('click', async () => {
   const btn = $('downloadBtn');
   const originalHTML = btn.innerHTML;
@@ -540,10 +577,15 @@ $('downloadBtn').addEventListener('click', async () => {
   btn.innerHTML = 'جارٍ التجهيز…';
 
   try{
-    // make sure Cairo / Aref Ruqaa are fully loaded before capturing,
-    // otherwise the export can silently fall back to a system font
     if(document.fonts && document.fonts.ready){
       await document.fonts.ready;
+    }
+
+    let fontEmbedCss;
+    try{
+      fontEmbedCss = await buildFontEmbedCss();
+    } catch(e){
+      console.warn('Font embedding failed, falling back to default export behaviour:', e);
     }
 
     const dataUrl = await htmlToImage.toPng(el.card, {
@@ -553,6 +595,7 @@ $('downloadBtn').addEventListener('click', async () => {
       backgroundColor: '#ffffff',
       cacheBust: true,
       style: { transform: 'none' }, // ignore the on-screen preview scale, keep true A4 size
+      ...(fontEmbedCss ? { fontEmbedCss } : {}),
     });
     const link = document.createElement('a');
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
