@@ -748,7 +748,7 @@ $('downloadBtn').addEventListener('click', async () => {
       backgroundColor: '#ffffff',
       cacheBust: true,
       style: { transform: 'none' }, // ignore the on-screen preview scale, keep true A4 size
-      ...(fontEmbedCss ? { fontEmbedCss } : {}),
+      ...(fontEmbedCss ? { fontEmbedCSS: fontEmbedCss } : {}),
     });
     const link = document.createElement('a');
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
