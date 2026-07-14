@@ -110,7 +110,7 @@ const OPENING_PHRASES = [
    ============================================================ */
 const state = {
   gender: 'male',
-  photo: { dataUrl: null, naturalW: 0, naturalH: 0, rotation: 0, zoom: 1 },
+  photo: { dataUrl: null, naturalW: 0, naturalH: 0, rotation: 0, zoom: 1, offsetX: 0, offsetY: 0 },
   relations: DEFAULT_RELATIONS.map(r => ({...r})),
   dirty: { notice:false, funeral:false, condolence:false, closing:false },
 };
@@ -130,6 +130,10 @@ const el = {
   nickname: $('nickname'),
   photoInput: $('photoInput'),
   removePhoto: $('removePhoto'),
+  photoEditor: $('photoEditor'),
+  photoEditorFrame: $('photoEditorFrame'),
+  photoEditorPan: $('photoEditorPan'),
+  photoEditorImg: $('photoEditorImg'),
   photoAdjustRow: $('photoAdjustRow'),
   rotateLeft: $('rotateLeft'),
   rotateRight: $('rotateRight'),
@@ -155,6 +159,7 @@ const el = {
   outAnnouncer: $('out-announcer'),
   outNotice: $('out-notice'),
   outPhotoWrap: $('out-photo-wrap'),
+  outPhotoPan: $('out-photo-pan'),
   outPhoto: $('out-photo'),
   outName: $('out-name'),
   outNickname: $('out-nickname'),
@@ -249,8 +254,15 @@ el.openingSelect.addEventListener('change', () => {
 el.openingCustom.addEventListener('input', renderCard);
 
 /* ============================================================
-   PHOTO UPLOAD, ROTATE & ZOOM
+   PHOTO UPLOAD, ROTATE, ZOOM & DRAG-TO-PAN
+   The small editor next to the upload field and the photo shown
+   in the actual card are two independent DOM nodes that mirror
+   the same state, so edits made in the small editor show up
+   immediately in the real card without needing to scroll up.
    ============================================================ */
+const CARD_FRAME_W = 120, CARD_FRAME_H = 142;     // matches .card-photo-frame in CSS
+const EDITOR_FRAME_W = 200, EDITOR_FRAME_H = 237; // matches .photo-editor-frame in CSS (same aspect ratio)
+
 el.photoInput.addEventListener('change', () => {
   const file = el.photoInput.files[0];
   if(!file) return;
@@ -263,9 +275,12 @@ el.photoInput.addEventListener('change', () => {
       state.photo.naturalH = img.naturalHeight;
       state.photo.rotation = 0;
       state.photo.zoom = 1;
+      state.photo.offsetX = 0;
+      state.photo.offsetY = 0;
       el.photoZoom.value = 1;
+      el.photoEditorImg.src = reader.result;
       el.removePhoto.hidden = false;
-      el.photoAdjustRow.hidden = false;
+      el.photoEditor.hidden = false;
       renderCard();
     };
     img.src = reader.result;
@@ -273,18 +288,22 @@ el.photoInput.addEventListener('change', () => {
   reader.readAsDataURL(file);
 });
 el.removePhoto.addEventListener('click', () => {
-  state.photo = { dataUrl: null, naturalW: 0, naturalH: 0, rotation: 0, zoom: 1 };
+  state.photo = { dataUrl: null, naturalW: 0, naturalH: 0, rotation: 0, zoom: 1, offsetX: 0, offsetY: 0 };
   el.photoInput.value = '';
   el.removePhoto.hidden = true;
-  el.photoAdjustRow.hidden = true;
+  el.photoEditor.hidden = true;
   renderCard();
 });
 el.rotateLeft.addEventListener('click', () => {
   state.photo.rotation = (state.photo.rotation - 90 + 360) % 360;
+  state.photo.offsetX = 0;
+  state.photo.offsetY = 0;
   renderCard();
 });
 el.rotateRight.addEventListener('click', () => {
   state.photo.rotation = (state.photo.rotation + 90) % 360;
+  state.photo.offsetX = 0;
+  state.photo.offsetY = 0;
   renderCard();
 });
 el.photoZoom.addEventListener('input', () => {
@@ -292,20 +311,81 @@ el.photoZoom.addEventListener('input', () => {
   renderCard();
 });
 
-/* Compute a transform that always covers the fixed photo frame,
-   however the image is rotated, then layers the person's zoom on top. */
+/* ---- drag to pan, via pointer events (works for mouse + touch) ---- */
+let dragState = null;
+el.photoEditorFrame.addEventListener('pointerdown', (e) => {
+  if(!state.photo.dataUrl) return;
+  dragState = {
+    startX: e.clientX, startY: e.clientY,
+    startOffsetX: state.photo.offsetX, startOffsetY: state.photo.offsetY,
+  };
+  el.photoEditorFrame.classList.add('dragging');
+  el.photoEditorFrame.setPointerCapture(e.pointerId);
+});
+el.photoEditorFrame.addEventListener('pointermove', (e) => {
+  if(!dragState) return;
+  // editor is shown larger on screen than the true card frame, so convert
+  // drag distance in editor pixels down to true card pixels for a 1:1 feel
+  const ratio = CARD_FRAME_W / EDITOR_FRAME_W;
+  const dx = (e.clientX - dragState.startX) * ratio;
+  const dy = (e.clientY - dragState.startY) * ratio;
+  state.photo.offsetX = dragState.startOffsetX + dx;
+  state.photo.offsetY = dragState.startOffsetY + dy;
+  applyPhotoTransform(); // lightweight: skip full renderCard() while dragging
+});
+function endDrag(e){
+  if(!dragState) return;
+  dragState = null;
+  el.photoEditorFrame.classList.remove('dragging');
+}
+el.photoEditorFrame.addEventListener('pointerup', endDrag);
+el.photoEditorFrame.addEventListener('pointercancel', endDrag);
+
+/* Compute a transform that always covers the fixed photo frame however the
+   image is rotated, layer the person's zoom + pan offset on top, and apply
+   it to both the small editor and the real card so they stay in sync. */
 function applyPhotoTransform(){
-  const frameW = 120, frameH = 142; // matches .card-photo-frame in CSS
   const { naturalW, naturalH, rotation, zoom } = state.photo;
   if(!naturalW || !naturalH) return;
+
   let effW = naturalW, effH = naturalH;
   if(rotation === 90 || rotation === 270){ [effW, effH] = [effH, effW]; }
-  const coverScale = Math.max(frameW / effW, frameH / effH);
-  const finalScale = coverScale * zoom;
-  el.outPhoto.style.width = naturalW + 'px';
-  el.outPhoto.style.height = naturalH + 'px';
-  el.outPhoto.style.transform =
-    `translate(-50%, -50%) rotate(${rotation}deg) scale(${finalScale})`;
+
+  const targets = [
+    { frameW: CARD_FRAME_W,   frameH: CARD_FRAME_H,   pan: el.outPhotoPan,      img: el.outPhoto },
+    { frameW: EDITOR_FRAME_W, frameH: EDITOR_FRAME_H, pan: el.photoEditorPan,   img: el.photoEditorImg },
+  ];
+
+  targets.forEach(({ frameW, frameH, pan, img }) => {
+    if(!pan || !img) return;
+    const scaleForThisFrame = frameW / CARD_FRAME_W; // editor is drawn bigger than the card
+    const coverScale = Math.max(frameW / effW, frameH / effH);
+    const finalScale = coverScale * zoom;
+
+    // clamp pan so the image always fully covers its frame (no blank gaps)
+    const displayedW = effW * finalScale;
+    const displayedH = effH * finalScale;
+    const maxOffsetX = Math.max(0, (displayedW - frameW) / 2);
+    const maxOffsetY = Math.max(0, (displayedH - frameH) / 2);
+    const rawOffsetX = state.photo.offsetX * scaleForThisFrame;
+    const rawOffsetY = state.photo.offsetY * scaleForThisFrame;
+    const clampedX = Math.max(-maxOffsetX, Math.min(maxOffsetX, rawOffsetX));
+    const clampedY = Math.max(-maxOffsetY, Math.min(maxOffsetY, rawOffsetY));
+
+    pan.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
+    img.style.width = naturalW + 'px';
+    img.style.height = naturalH + 'px';
+    img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${finalScale})`;
+  });
+
+  // store the clamped, frame-independent offset back so the slider/rotate
+  // logic and next drag start from a value that's already in-bounds
+  const coverScaleCard = Math.max(CARD_FRAME_W / effW, CARD_FRAME_H / effH);
+  const finalScaleCard = coverScaleCard * zoom;
+  const maxOffXCard = Math.max(0, (effW * finalScaleCard - CARD_FRAME_W) / 2);
+  const maxOffYCard = Math.max(0, (effH * finalScaleCard - CARD_FRAME_H) / 2);
+  state.photo.offsetX = Math.max(-maxOffXCard, Math.min(maxOffXCard, state.photo.offsetX));
+  state.photo.offsetY = Math.max(-maxOffYCard, Math.min(maxOffYCard, state.photo.offsetY));
 }
 
 /* ============================================================
@@ -536,43 +616,122 @@ window.addEventListener('resize', scalePreview);
    html-to-image's *automatic* font embedding scans the page's
    stylesheets for @font-face rules and inlines them — but that
    scan silently fails on a cross-origin stylesheet like Google
-   Fonts (reading its CSSOM rules throws), so the export quietly
-   falls back to a generic system font. To fix this reliably we
-   fetch the Google Fonts CSS + font files ourselves, inline them
-   as base64, and hand that CSS to html-to-image explicitly via
-   the `fontEmbedCss` option instead of relying on auto-detection.
+   Fonts (reading its CSSOM rules throws a SecurityError), so the
+   export can quietly fall back to a generic system font. Two
+   strategies are used to fix this, tried in order:
+
+   1) LOCAL FONT FILES (fully reliable): if you've added the
+      optional "fonts" folder next to this site (see setup notes),
+      those files are same-origin, so embedding them as base64
+      never runs into any CORS issue at all.
+   2) GOOGLE FONTS FALLBACK: if the local files aren't present,
+      fetch the Google Fonts CSS + font files directly and inline
+      them the same way. This works as long as the browser allows
+      the request (Google Fonts serves CORS-friendly responses),
+      but is one extra network dependency at export time.
    ============================================================ */
+const LOCAL_FONT_FILES = [
+  ['Cairo', 300, 'fonts/cairo-300.woff2'],
+  ['Cairo', 400, 'fonts/cairo-400.woff2'],
+  ['Cairo', 500, 'fonts/cairo-500.woff2'],
+  ['Cairo', 600, 'fonts/cairo-600.woff2'],
+  ['Cairo', 700, 'fonts/cairo-700.woff2'],
+  ['Cairo', 800, 'fonts/cairo-800.woff2'],
+  ['Cairo', 900, 'fonts/cairo-900.woff2'],
+  ['Aref Ruqaa', 400, 'fonts/aref-ruqaa-400.woff2'],
+  ['Aref Ruqaa', 700, 'fonts/aref-ruqaa-700.woff2'],
+];
 const GOOGLE_FONTS_CSS_URL = "https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@300;400;500;600;700;800;900&display=swap";
 let cachedFontEmbedCss = null;
 
-async function buildFontEmbedCss(){
-  if(cachedFontEmbedCss) return cachedFontEmbedCss;
+async function blobToDataUrl(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function buildLocalFontEmbedCss(){
+  const rules = await Promise.all(LOCAL_FONT_FILES.map(async ([family, weight, path]) => {
+    const res = await fetch(path);
+    if(!res.ok) throw new Error(`Local font file missing: ${path}`);
+    const dataUrl = await blobToDataUrl(await res.blob());
+    return `@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};font-display:swap;src:url(${dataUrl}) format('woff2');}`;
+  }));
+  return rules.join('\n');
+}
+
+async function buildGoogleFontEmbedCss(){
   const cssText = await fetch(GOOGLE_FONTS_CSS_URL).then(r => r.text());
   const fontUrls = [...cssText.matchAll(/url\((https:\/\/[^)]+)\)/g)].map(m => m[1]);
 
   let embedded = cssText;
   await Promise.all(fontUrls.map(async (url) => {
     try{
-      const blob = await fetch(url).then(r => r.blob());
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      const dataUrl = await blobToDataUrl(await fetch(url).then(r => r.blob()));
       embedded = embedded.split(url).join(dataUrl);
     } catch(e){
       console.warn('Could not embed font file, export may fall back for it:', url, e);
     }
   }));
-
-  cachedFontEmbedCss = embedded;
   return embedded;
 }
+
+async function buildFontEmbedCss(){
+  if(cachedFontEmbedCss) return cachedFontEmbedCss;
+  try{
+    cachedFontEmbedCss = await buildLocalFontEmbedCss();
+    return cachedFontEmbedCss;
+  } catch(e){
+    console.info('Local font files not found (this is optional), falling back to Google Fonts for the export:', e.message);
+  }
+  cachedFontEmbedCss = await buildGoogleFontEmbedCss();
+  return cachedFontEmbedCss;
+}
+
+/* ============================================================
+   REQUIRED FIELD VALIDATION
+   ============================================================ */
+function validateRequiredFields(){
+  const requiredFields = [
+    { input: el.deceasedName, label: 'الاسم الكامل' },
+    { input: el.mosqueName, label: 'مكان الصلاة (المسجد/الجامع)' },
+  ];
+  const missing = [];
+  requiredFields.forEach(({ input, label }) => {
+    const fieldLabel = document.querySelector(`label[for="${input.id}"]`);
+    const isEmpty = !input.value.trim();
+    input.classList.toggle('invalid', isEmpty);
+    if(fieldLabel) fieldLabel.classList.toggle('invalid', isEmpty);
+    if(isEmpty) missing.push({ input, label });
+  });
+  return missing;
+}
+// clear the red "invalid" state the moment the person starts fixing it
+[el.deceasedName, el.mosqueName].forEach(input => {
+  input.addEventListener('input', () => {
+    if(input.value.trim()){
+      input.classList.remove('invalid');
+      const fieldLabel = document.querySelector(`label[for="${input.id}"]`);
+      if(fieldLabel) fieldLabel.classList.remove('invalid');
+    }
+  });
+});
 
 $('downloadBtn').addEventListener('click', async () => {
   const btn = $('downloadBtn');
   const originalHTML = btn.innerHTML;
+
+  const missing = validateRequiredFields();
+  if(missing.length){
+    missing[0].input.scrollIntoView({ behavior:'smooth', block:'center' });
+    missing[0].input.focus();
+    alert(`الرجاء تعبئة الحقول المطلوبة أولًا:\n${missing.map(m => '• ' + m.label).join('\n')}`);
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = 'جارٍ التجهيز…';
 
@@ -603,8 +762,13 @@ $('downloadBtn').addEventListener('click', async () => {
     link.href = dataUrl;
     link.click();
   } catch(err){
-    console.error(err);
-    alert('حدث خطأ أثناء إنشاء الصورة. حاول مجددًا.');
+    console.error('PNG export failed:', err);
+    const detail = (err && (err.message || err.name)) ? `${err.name || 'Error'}: ${err.message || ''}` : String(err);
+    alert(
+      'حدث خطأ أثناء إنشاء الصورة.\n\n' +
+      'تفاصيل تقنية (للمساعدة في التشخيص):\n' + detail + '\n\n' +
+      'الأسباب الشائعة: انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد. جرّب تعطيل مانع الإعلانات أو تحديث الصفحة والمحاولة مجددًا.'
+    );
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalHTML;

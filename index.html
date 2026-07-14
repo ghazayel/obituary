@@ -89,7 +89,9 @@
 
           <div class="card-photo-wrap" id="out-photo-wrap" hidden>
             <div class="card-photo-frame">
-              <img id="out-photo" alt="صورة الفقيد">
+              <div class="photo-pan-layer" id="out-photo-pan">
+                <img id="out-photo" alt="صورة الفقيد" draggable="false">
+              </div>
             </div>
           </div>
 
@@ -159,7 +161,7 @@
       <fieldset class="fieldset">
         <legend>٢ — بيانات الفقيد</legend>
 
-        <label class="field-label" for="deceasedName">الاسم الكامل *</label>
+        <label class="field-label required" for="deceasedName">الاسم الكامل <span class="required-mark">*</span></label>
         <input id="deceasedName" class="input" type="text" placeholder="مثال: محمد أحمد الزعرت" required>
 
         <label class="field-label" for="nickname">اللقب / الكنية (اختياري)</label>
@@ -171,15 +173,24 @@
           <button type="button" id="removePhoto" class="btn-link" hidden>إزالة الصورة</button>
         </div>
 
-        <div id="photoAdjustRow" class="photo-adjust-row" hidden>
-          <button type="button" id="rotateLeft" class="btn btn-secondary btn-small" title="تدوير لليسار">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 4 9l5-5M4 9h9a7 7 0 1 1 0 14H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <button type="button" id="rotateRight" class="btn btn-secondary btn-small" title="تدوير لليمين">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 14 5-5-5-5M20 9h-9a7 7 0 1 0 0 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <span class="zoom-label">تكبير</span>
-          <input id="photoZoom" type="range" min="1" max="3" step="0.05" value="1">
+        <div id="photoEditor" class="photo-editor" hidden>
+          <div class="photo-editor-frame" id="photoEditorFrame">
+            <div class="photo-pan-layer" id="photoEditorPan">
+              <img id="photoEditorImg" alt="معاينة الصورة" draggable="false">
+            </div>
+          </div>
+          <p class="photo-editor-hint">اسحب الصورة داخل الإطار لتحريكها لأفضل وضعية</p>
+
+          <div id="photoAdjustRow" class="photo-adjust-row">
+            <button type="button" id="rotateLeft" class="btn btn-secondary btn-small" title="تدوير لليسار">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 4 9l5-5M4 9h9a7 7 0 1 1 0 14H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" id="rotateRight" class="btn btn-secondary btn-small" title="تدوير لليمين">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 14 5-5-5-5M20 9h-9a7 7 0 1 0 0 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span class="zoom-label">تكبير</span>
+            <input id="photoZoom" type="range" min="1" max="3" step="0.05" value="1">
+          </div>
         </div>
       </fieldset>
 
@@ -224,7 +235,7 @@
           </div>
         </div>
 
-        <label class="field-label" for="mosqueName">مكان الصلاة (المسجد/الجامع) *</label>
+        <label class="field-label required" for="mosqueName">مكان الصلاة (المسجد/الجامع) <span class="required-mark">*</span></label>
         <input id="mosqueName" class="input" type="text" placeholder="مثال: جامع الرحمة">
 
         <label class="field-label" for="burialLocation">مكان الدفن</label>
@@ -287,6 +298,8 @@
     <a href="https://www.facebook.com/ghazayel/" target="_blank" rel="noopener">محمود غزيّل</a>
   </p>
 </footer>
+
+<div id="versionTag" class="version-tag">v1.6.0</div>
 
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
 <script src="app.js"></script>
