@@ -1,26 +1,17 @@
 /* ===================== OPTIONAL LOCAL FONTS =====================
-   If you add a "fonts" folder next to this file with the files
+   If you add a "fonts" folder next to this file with the 3 files
    named below, these declarations take priority over the Google
    Fonts CDN version (loaded via <link> in index.html) and make the
    PNG export 100% reliable, with zero dependency on the internet
    or CORS at export time. If the files are missing, the browser
    simply falls back to the Google Fonts CDN version — nothing
-   breaks either way. See the setup notes for how to get these
-   two font families for free (Cairo + Aref Ruqaa, both open source).
-   Expected files:
-     fonts/cairo-300.woff2   fonts/cairo-400.woff2
-     fonts/cairo-500.woff2   fonts/cairo-600.woff2
-     fonts/cairo-700.woff2   fonts/cairo-800.woff2
-     fonts/cairo-900.woff2
-     fonts/aref-ruqaa-400.woff2   fonts/aref-ruqaa-700.woff2
+   breaks either way. See the setup notes for exact download links.
+   Expected files (only 3 — Cairo ships as one variable-weight file):
+     fonts/cairo-variable.woff2      (covers all Cairo weights 200-900)
+     fonts/aref-ruqaa-400.woff2
+     fonts/aref-ruqaa-700.woff2
    =================================================================== */
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:300; font-display:swap; src:url('fonts/cairo-300.woff2') format('woff2'); }
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:400; font-display:swap; src:url('fonts/cairo-400.woff2') format('woff2'); }
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:500; font-display:swap; src:url('fonts/cairo-500.woff2') format('woff2'); }
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:600; font-display:swap; src:url('fonts/cairo-600.woff2') format('woff2'); }
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:700; font-display:swap; src:url('fonts/cairo-700.woff2') format('woff2'); }
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:800; font-display:swap; src:url('fonts/cairo-800.woff2') format('woff2'); }
-@font-face{ font-family:'Cairo'; font-style:normal; font-weight:900; font-display:swap; src:url('fonts/cairo-900.woff2') format('woff2'); }
+@font-face{ font-family:'Cairo'; font-style:normal; font-weight:200 1000; font-display:swap; src:url('fonts/cairo-variable.woff2') format('woff2-variations'); }
 @font-face{ font-family:'Aref Ruqaa'; font-style:normal; font-weight:400; font-display:swap; src:url('fonts/aref-ruqaa-400.woff2') format('woff2'); }
 @font-face{ font-family:'Aref Ruqaa'; font-style:normal; font-weight:700; font-display:swap; src:url('fonts/aref-ruqaa-700.woff2') format('woff2'); }
 

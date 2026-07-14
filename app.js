@@ -631,15 +631,9 @@ window.addEventListener('resize', scalePreview);
       but is one extra network dependency at export time.
    ============================================================ */
 const LOCAL_FONT_FILES = [
-  ['Cairo', 300, 'fonts/cairo-300.woff2'],
-  ['Cairo', 400, 'fonts/cairo-400.woff2'],
-  ['Cairo', 500, 'fonts/cairo-500.woff2'],
-  ['Cairo', 600, 'fonts/cairo-600.woff2'],
-  ['Cairo', 700, 'fonts/cairo-700.woff2'],
-  ['Cairo', 800, 'fonts/cairo-800.woff2'],
-  ['Cairo', 900, 'fonts/cairo-900.woff2'],
-  ['Aref Ruqaa', 400, 'fonts/aref-ruqaa-400.woff2'],
-  ['Aref Ruqaa', 700, 'fonts/aref-ruqaa-700.woff2'],
+  { family: 'Cairo', weight: '200 1000', format: 'woff2-variations', path: 'fonts/cairo-variable.woff2' },
+  { family: 'Aref Ruqaa', weight: '400', format: 'woff2', path: 'fonts/aref-ruqaa-400.woff2' },
+  { family: 'Aref Ruqaa', weight: '700', format: 'woff2', path: 'fonts/aref-ruqaa-700.woff2' },
 ];
 const GOOGLE_FONTS_CSS_URL = "https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@300;400;500;600;700;800;900&display=swap";
 let cachedFontEmbedCss = null;
@@ -654,11 +648,11 @@ async function blobToDataUrl(blob){
 }
 
 async function buildLocalFontEmbedCss(){
-  const rules = await Promise.all(LOCAL_FONT_FILES.map(async ([family, weight, path]) => {
+  const rules = await Promise.all(LOCAL_FONT_FILES.map(async ({ family, weight, format, path }) => {
     const res = await fetch(path);
     if(!res.ok) throw new Error(`Local font file missing: ${path}`);
     const dataUrl = await blobToDataUrl(await res.blob());
-    return `@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};font-display:swap;src:url(${dataUrl}) format('woff2');}`;
+    return `@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};font-display:swap;src:url(${dataUrl}) format('${format}');}`;
   }));
   return rules.join('\n');
 }
