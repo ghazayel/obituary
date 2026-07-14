@@ -1,0 +1,324 @@
+/* ===================== TOKENS ===================== */
+:root{
+  --paper: #F5F3ED;
+  --panel: #FFFFFF;
+  --ink: #211E1A;
+  --muted: #756E5F;
+  --rule: #DED7C6;
+  --accent: #2F4A3C;
+  --accent-soft: #E7EBE6;
+  --danger: #9A3B2E;
+
+  --font-display: 'Aref Ruqaa', serif;
+  --font-body: 'Cairo', sans-serif;
+  --font-name: 'Cairo', sans-serif;
+
+  --a4-w: 794px;
+  --a4-h: 1123px;
+}
+
+*{ box-sizing: border-box; }
+html,body{ margin:0; padding:0; }
+body{
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+/* ===================== TOPBAR ===================== */
+.topbar{
+  position: sticky; top:0; z-index: 40;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+}
+.topbar-inner{
+  max-width: 1400px; margin:0 auto;
+  padding: 14px 28px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.brand{ display:flex; align-items:center; gap:10px; }
+.brand-mark{ color: var(--accent); }
+.brand-text{ display:flex; flex-direction:column; line-height:1.2; }
+.brand-title{ font-weight:700; font-size:18px; }
+.brand-sub{ font-size:12px; color:var(--muted); }
+
+.btn{
+  font-family: var(--font-body);
+  border:none; cursor:pointer;
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 14.5px; font-weight:600;
+  display:inline-flex; align-items:center; gap:8px;
+  transition: transform .12s ease, background .15s ease;
+}
+.btn:active{ transform: scale(.97); }
+.btn-primary{ background: var(--accent); color:#fff; }
+.btn-primary:hover{ background:#25392e; }
+.btn-secondary{ background: var(--accent-soft); color: var(--accent); }
+.btn-secondary:hover{ background:#dde4dd; }
+.btn-small{ padding:8px 14px; font-size:13.5px; }
+
+.btn-link{
+  background:none; border:none; cursor:pointer;
+  color: var(--accent); font-family: var(--font-body);
+  font-size:13px; font-weight:600; padding:4px 0; margin-top:2px;
+  text-align: right; align-self:flex-start;
+}
+.btn-link:hover{ text-decoration: underline; }
+
+/* ===================== LAYOUT ===================== */
+.layout{
+  max-width: 1400px; margin:0 auto;
+  display:grid;
+  grid-template-columns: minmax(420px, 560px) 1fr;
+  gap: 28px;
+  padding: 28px;
+  align-items:start;
+}
+
+/* ===================== PREVIEW ===================== */
+.preview-pane{ position:relative; }
+.preview-sticky{ position: sticky; top: 84px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+
+.a4-wrap{
+  width: 100%;
+  max-width: 460px;
+  aspect-ratio: 794 / 1123;
+  overflow:hidden;
+  background: var(--panel);
+  box-shadow: 0 10px 30px rgba(33,30,26,0.14), 0 2px 6px rgba(33,30,26,0.08);
+  border-radius: 3px;
+}
+.a4-inner-scale{ transform-origin: top right; }
+
+.preview-hint{ font-size:12.5px; color:var(--muted); text-align:center; }
+.btn-download{ width:100%; max-width:460px; justify-content:center; font-size:15.5px; padding:13px 20px; }
+
+/* ===================== CARD (printed area, always B&W) ===================== */
+.card{
+  width: var(--a4-w);
+  height: var(--a4-h);
+  background: #FFFFFF;
+  color: #000000;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-content{
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 40px 40px 30px;
+  font-family: var(--font-body);
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  transform-origin: top center;
+}
+
+.spacer{ flex: 1 1 auto; min-height: 12px; }
+
+.card-ornament{
+  position:relative;
+  height:1px; background:#000;
+  width:64%; margin: 12px auto;
+  flex-shrink: 0;
+}
+.card-ornament::after{
+  content:''; position:absolute; top:50%; left:50%;
+  width:9px; height:9px; background:#000;
+  transform: translate(-50%,-50%) rotate(45deg);
+}
+
+.card-header{ text-align:center; margin-bottom: 4px; flex-shrink: 0; }
+.opening-phrase{
+  font-family: var(--font-display);
+  font-weight:700; font-size: 26px;
+  margin: 0 0 12px;
+}
+.announcer-line{
+  font-weight:800; font-size:18px;
+  margin: 0 0 8px;
+}
+.notice-line{
+  font-size: 16px; color:#111;
+  margin: 0 auto; max-width: 640px;
+}
+
+.card-photo-wrap{
+  display:flex; justify-content:center; margin: 8px 0 2px;
+  flex-shrink: 0;
+}
+.card-photo-frame{
+  width: 120px; height:142px;
+  border: 1px solid #000;
+  overflow: hidden;
+  position: relative;
+}
+.card-photo-frame img{
+  position: absolute;
+  top: 50%; left: 50%;
+  max-width: none;
+  transform-origin: center center;
+}
+
+.card-name{
+  font-family: var(--font-name);
+  font-weight: 900;
+  font-size: 64px;
+  text-align:center;
+  margin: 4px 0 4px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.card-nickname{
+  text-align:center; font-size:18px; font-weight:700; margin:0;
+  flex-shrink: 0;
+}
+
+.card-relations{
+  font-size: 17px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+.relation-row{
+  display:flex; gap:10px; padding: 6px 0;
+  border-bottom: 1px dotted #999;
+}
+.relation-row:last-child{ border-bottom:none; }
+.relation-label{
+  font-weight:800; white-space:nowrap; flex-shrink:0;
+}
+.relation-value{ flex:1; }
+
+.card-funeral-box{
+  border: 1.6px solid #000;
+  padding: 18px 22px;
+  text-align:center;
+  font-size: 17px;
+  font-weight:700;
+  margin-top: 14px;
+  flex-shrink: 0;
+}
+.card-funeral-box p{ margin: 4px 0; }
+.funeral-block{ white-space: pre-line; }
+
+.card-condolences{
+  text-align:center;
+  font-size: 15.5px;
+  margin: 14px 0 0;
+  color:#111;
+  flex-shrink: 0;
+  white-space: pre-line;
+}
+
+.card-closing{
+  text-align:center;
+  font-size: 16px;
+  font-weight:800;
+  margin: 10px 0 0;
+  flex-shrink: 0;
+}
+
+.card-footer-contact{
+  text-align:center;
+  font-size: 12px;
+  color:#333;
+  margin-top: 14px;
+  border-top: 1px solid #ccc;
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+
+/* ===================== FORM ===================== */
+.form-pane{ padding-bottom: 60px; }
+#form{ display:flex; flex-direction:column; gap: 18px; }
+
+.field-group{ margin-bottom: 4px; }
+.field-label{
+  display:block; font-size:13.5px; font-weight:700;
+  color: var(--ink); margin: 12px 0 6px;
+}
+.field-label:first-child{ margin-top:0; }
+
+.input{
+  width:100%;
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background:#fff;
+  color: var(--ink);
+  resize: vertical;
+}
+.input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+
+.row-2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+.hint{ font-size:12.5px; color:var(--muted); margin: 0 0 8px; }
+
+.fieldset{
+  border:1px solid var(--rule);
+  border-radius: 12px;
+  padding: 18px 20px 20px;
+  background: var(--panel);
+  display:flex; flex-direction:column;
+}
+.fieldset legend{
+  font-weight:800; font-size:14px; color:var(--accent);
+  padding: 0 8px;
+}
+
+.segmented{ display:flex; gap:8px; }
+.seg-btn{
+  flex:1; font-family: var(--font-body); font-weight:700; font-size:14px;
+  border:1px solid var(--rule); background:#fff; color:var(--muted);
+  padding:10px; border-radius:8px; cursor:pointer;
+}
+.seg-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
+
+.photo-input-row{ display:flex; align-items:center; gap:12px; }
+.photo-adjust-row{
+  display:flex; align-items:center; gap:10px;
+  margin-top: 10px; padding: 10px 12px;
+  background: var(--accent-soft); border-radius: 8px;
+}
+.photo-adjust-row .btn-small{ padding:8px; }
+.zoom-label{ font-size:13px; color:var(--muted); font-weight:600; white-space:nowrap; }
+.photo-adjust-row input[type="range"]{ flex:1; accent-color: var(--accent); }
+
+/* relation rows in form */
+.relation-item{
+  display:flex; gap:8px; align-items:flex-start;
+  border:1px solid var(--rule); border-radius:8px;
+  padding:10px; margin-bottom:8px; background:#fdfcfa;
+}
+.relation-item input.rel-label{ width: 34%; font-weight:700; }
+.relation-item input.rel-value{ flex:1; }
+.rel-remove{
+  background:none; border:none; cursor:pointer;
+  color: var(--danger); font-size:18px; line-height:1; padding:6px;
+}
+
+/* ===================== CREDIT FOOTER ===================== */
+.credit-footer{
+  max-width:1400px; margin:0 auto;
+  padding: 22px 28px 40px;
+  text-align:center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.credit-footer a{ color: var(--accent); font-weight:700; text-decoration:none; }
+.credit-footer a:hover{ text-decoration:underline; }
+.designer-credit{ margin-top:6px; font-size:12px; color: var(--muted); }
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 980px){
+  .layout{ grid-template-columns: 1fr; }
+  .preview-sticky{ position:static; }
+  .a4-wrap{ max-width: 520px; }
+  .row-2{ grid-template-columns:1fr; }
+}
