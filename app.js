@@ -99,7 +99,7 @@ function swapRelationLabelsForGender(gender){
 }
 
 const OPENING_PHRASES = [
-  "وبشرى الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
+  "وبشر الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
   "سبحان الحي الذي لا يموت",
   "اللهم ألهمنا الصبر والسلوان على مصابنا الجلل",
   "إنا لله وإنا إليه راجعون",
@@ -194,9 +194,9 @@ function renderRelationForm(){
     const row = document.createElement('div');
     row.className = 'relation-item';
     row.innerHTML = `
-      <button type="button" class="rel-remove" title="حذف هذه الصلة" aria-label="حذف هذه الصلة">×</button>
       <input type="text" class="input rel-label" placeholder="الصلة (مثال: أشقاؤه)" value="${escapeAttr(rel.label)}">
       <input type="text" class="input rel-value" placeholder="الأسماء" value="${escapeAttr(rel.value)}">
+      <button type="button" class="rel-remove" title="حذف" aria-label="حذف">×</button>
     `;
     const [labelInput, valueInput] = row.querySelectorAll('input');
     labelInput.addEventListener('input', () => { rel.label = labelInput.value; renderCard(); });
@@ -741,7 +741,7 @@ $('downloadBtn').addEventListener('click', async () => {
       console.warn('Font embedding failed, falling back to default export behaviour:', e);
     }
 
-    const blob = await htmlToImage.toBlob(el.card, {
+    const dataUrl = await htmlToImage.toPng(el.card, {
       width: 794,
       height: 1123,
       pixelRatio: 3,
@@ -750,27 +750,18 @@ $('downloadBtn').addEventListener('click', async () => {
       style: { transform: 'none' }, // ignore the on-screen preview scale, keep true A4 size
       ...(fontEmbedCss ? { fontEmbedCSS: fontEmbedCss } : {}),
     });
-    if(!blob) throw new Error('لم يتمكن المتصفح من إنشاء الصورة (blob فارغ)');
-
-    // Blob object URLs are short-lived local references (blob:https://...),
-    // unlike multi-megabyte data: URLs — far more broadly supported for
-    // triggering a real file download across browsers and mobile devices.
-    const objectUrl = URL.createObjectURL(blob);
-    const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
     const link = document.createElement('a');
+    const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
     link.download = `نعوة_${nameSlug}.png`;
-    link.href = objectUrl;
-    document.body.appendChild(link);
+    link.href = dataUrl;
     link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
   } catch(err){
     console.error('PNG export failed:', err);
     const detail = (err && (err.message || err.name)) ? `${err.name || 'Error'}: ${err.message || ''}` : String(err);
     alert(
       'حدث خطأ أثناء إنشاء الصورة.\n\n' +
       'تفاصيل تقنية (للمساعدة في التشخيص):\n' + detail + '\n\n' +
-      'نصيحة: تأكد من أنك تفتح الصفحة في متصفح عادي (وليس داخل تطبيق)، وأن اتصال الإنترنت مستقر.'
+      'الأسباب الشائعة: انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد. جرّب تعطيل مانع الإعلانات أو تحديث الصفحة والمحاولة مجددًا.'
     );
   } finally {
     btn.disabled = false;
