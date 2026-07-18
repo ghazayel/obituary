@@ -99,7 +99,7 @@ function swapRelationLabelsForGender(gender){
 }
 
 const OPENING_PHRASES = [
-  "وبشرى الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
+  "وبشر الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
   "سبحان الحي الذي لا يموت",
   "اللهم ألهمنا الصبر والسلوان على مصابنا الجلل",
   "إنا لله وإنا إليه راجعون",
@@ -658,27 +658,40 @@ async function buildLocalFontEmbedCss(){
 }
 
 async function buildGoogleFontEmbedCss(){
-  const cssText = await fetch(GOOGLE_FONTS_CSS_URL).then(r => r.text());
-  const fontUrls = [...cssText.matchAll(/url\((https:\/\/[^)]+)\)/g)].map(m => m[1]);
+  try {
+    const res = await fetch(GOOGLE_FONTS_CSS_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const cssText = await res.text();
 
-  let embedded = cssText;
-  await Promise.all(fontUrls.map(async (url) => {
-    try{
-      const dataUrl = await blobToDataUrl(await fetch(url).then(r => r.blob()));
-      embedded = embedded.split(url).join(dataUrl);
-    } catch(e){
-      console.warn('Could not embed font file, export may fall back for it:', url, e);
-    }
-  }));
-  return embedded;
+    // Robust regex: tolerate optional whitespace and quotes around the URL
+    const fontUrlRegex = /url\(\s*['"]?(https?:\/\/[^'")]+)['"]?\s*\)/g;
+    let fontUrls = [...cssText.matchAll(fontUrlRegex)].map(m => m[1]);
+    fontUrls = [...new Set(fontUrls)]; // deduplicate
+
+    let embedded = cssText;
+    await Promise.all(fontUrls.map(async (url) => {
+      try {
+        const fontRes = await fetch(url);
+        if (!fontRes.ok) throw new Error(`HTTP ${fontRes.status}`);
+        const dataUrl = await blobToDataUrl(await fontRes.blob());
+        embedded = embedded.split(url).join(dataUrl);
+      } catch (e) {
+        console.warn('Could not embed font file, export may fall back for it:', url, e);
+      }
+    }));
+    return embedded;
+  } catch (e) {
+    console.warn('Failed to build Google Fonts embed CSS (network/CORS/adblock?), falling back to default fonts in export:', e);
+    return '';
+  }
 }
 
 async function buildFontEmbedCss(){
-  if(cachedFontEmbedCss) return cachedFontEmbedCss;
-  try{
+  if (cachedFontEmbedCss != null) return cachedFontEmbedCss;
+  try {
     cachedFontEmbedCss = await buildLocalFontEmbedCss();
     return cachedFontEmbedCss;
-  } catch(e){
+  } catch (e) {
     console.info('Local font files not found (this is optional), falling back to Google Fonts for the export:', e.message);
   }
   cachedFontEmbedCss = await buildGoogleFontEmbedCss();
@@ -714,54 +727,6 @@ function validateRequiredFields(){
   });
 });
 
-/* ============================================================
-   IN-APP BROWSER DETECTION (Facebook, Instagram, Messenger, etc.)
-   These are restricted WebViews, not real browsers. They can't
-   handle triggered file downloads properly — clicking a download
-   link makes them try to *navigate* to the image data as if it
-   were a webpage, which fails with a native "page can't be
-   loaded" error that our own JS never even sees or can catch.
-   The only real fix is asking the person to open the page in
-   their actual browser first, so we detect and warn proactively.
-   ============================================================ */
-function detectInAppBrowser(){
-  const ua = navigator.userAgent || '';
-  const patterns = [
-    { key: 'FBAN|FBAV|FB_IAB', name: 'فيسبوك' },
-    { key: 'Instagram', name: 'إنستغرام' },
-    { key: 'Line/', name: 'Line' },
-    { key: 'MicroMessenger', name: 'WeChat' },
-    { key: 'TikTok', name: 'TikTok' },
-    { key: 'Twitter', name: 'Twitter/X' },
-  ];
-  for(const p of patterns){
-    if(new RegExp(p.key, 'i').test(ua)) return p.name;
-  }
-  return null;
-}
-const inAppBrowserName = detectInAppBrowser();
-
-function showInAppBrowserBanner(){
-  if(document.getElementById('inAppBanner')) return;
-  const banner = document.createElement('div');
-  banner.id = 'inAppBanner';
-  banner.className = 'inapp-banner';
-  banner.innerHTML = `
-    <span>
-      يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}،
-      وهذا النوع من المتصفحات الداخلية عادة لا يسمح بتنزيل الصور.
-      للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة واختر
-      <strong>"فتح في المتصفح"</strong> (Open in Browser)، ثم أعد تنزيل الصورة من هناك.
-    </span>
-    <button type="button" id="dismissInAppBanner" aria-label="إغلاق">×</button>
-  `;
-  document.body.prepend(banner);
-  document.getElementById('dismissInAppBanner').addEventListener('click', () => banner.remove());
-}
-if(inAppBrowserName){
-  showInAppBrowserBanner();
-}
-
 $('downloadBtn').addEventListener('click', async () => {
   const btn = $('downloadBtn');
   const originalHTML = btn.innerHTML;
@@ -772,15 +737,6 @@ $('downloadBtn').addEventListener('click', async () => {
     missing[0].input.focus();
     alert(`الرجاء تعبئة الحقول المطلوبة أولًا:\n${missing.map(m => '• ' + m.label).join('\n')}`);
     return;
-  }
-
-  if(inAppBrowserName){
-    const proceed = confirm(
-      `أنت تستخدم متصفح ${inAppBrowserName} الداخلي، وهو عادة لا يسمح بتنزيل الصور مباشرة.\n\n` +
-      'للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة، اختر "فتح في المتصفح"، ثم أعد المحاولة من هناك.\n\n' +
-      'اضغط "موافق" للمتابعة والمحاولة الآن رغم ذلك، أو "إلغاء" للخروج وفتح الصفحة في المتصفح أولًا.'
-    );
-    if(!proceed) return;
   }
 
   btn.disabled = true;
