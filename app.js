@@ -749,7 +749,7 @@ function showInAppBrowserBanner(){
   banner.innerHTML = `
     <span>
       يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}.
-      سنحاول تنزيل الصورة مباشرة، وإن لم ينجح ذلك سنعرضها لك لحفظها بالضغط المطوّل عليها.
+      سنحاول تنزيل الصورة مباشرة، وإن لم ينجح ذلك سنعرض لك طرقًا بديلة للحفظ.
     </span>
     <button type="button" id="dismissInAppBanner" aria-label="إغلاق">×</button>
   `;
@@ -806,34 +806,77 @@ async function deliverImage(blob, filename){
   }
 
   // Inside a known in-app browser, the click above is unreliable even when
-  // it doesn't throw — so always also offer the long-press fallback there.
+  // it doesn't throw — so always also offer more fallback options there.
   if(inAppBrowserName || !downloadLikelyWorked){
-    showSaveImageModal(objectUrl);
+    showSaveOptionsPanel(objectUrl, blob, filename);
   } else {
     setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
   }
 }
 
-function showSaveImageModal(imageUrl){
+function showSaveOptionsPanel(imageUrl, blob, filename){
   const modal = document.createElement('div');
   modal.className = 'save-modal';
   modal.innerHTML = `
     <div class="save-modal-inner">
-      <p>اضغط مطوّلًا على الصورة أدناه، ثم اختر <strong>"حفظ الصورة"</strong> لتنزيلها</p>
-      <img src="${imageUrl}" alt="النعوة">
-      <button type="button" class="btn btn-secondary" id="closeSaveModal">إغلاق</button>
+      <p>يبدو أن التنزيل المباشر غير متاح في هذا المتصفح الداخلي. جرّب إحدى الطرق التالية:</p>
+
+      <button type="button" class="btn btn-primary btn-save-option" id="openImageTab">
+        فتح الصورة في نافذة جديدة (ثم اضغط عليها مطوّلًا لحفظها)
+      </button>
+
+      <button type="button" class="btn btn-secondary btn-save-option" id="copyImageBtn">
+        نسخ الصورة (للصقها في محادثة أو تطبيق آخر)
+      </button>
+
+      <button type="button" class="btn btn-secondary btn-save-option" id="copyLinkBtn">
+        نسخ رابط هذه الصفحة لفتحه في متصفحك (Chrome / Safari)
+      </button>
+
+      <p class="save-modal-note">
+        الطريقة الأضمن: اضغط على زر القائمة (⋮ أو ⋯) أعلى الشاشة واختر
+        <strong>"فتح في المتصفح"</strong>، ثم نزّل الصورة من هناك مباشرة.
+      </p>
+
+      <img src="${imageUrl}" alt="النعوة" class="save-modal-img">
+
+      <button type="button" class="btn btn-link" id="closeSaveModal">إغلاق</button>
     </div>
   `;
   document.body.appendChild(modal);
+
+  document.getElementById('openImageTab').addEventListener('click', () => {
+    window.open(imageUrl, '_blank');
+  });
+
+  document.getElementById('copyImageBtn').addEventListener('click', async () => {
+    try{
+      if(!navigator.clipboard || !window.ClipboardItem) throw new Error('unsupported');
+      await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blob }) ]);
+      alert('تم نسخ الصورة. يمكنك الآن لصقها في أي محادثة أو تطبيق ثم حفظها من هناك.');
+    } catch(err){
+      alert('نسخ الصورة غير مدعوم في هذا المتصفح. جرّب أحد الخيارات الأخرى.');
+    }
+  });
+
+  document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(location.href);
+      alert('تم نسخ رابط الصفحة. الصقه في متصفحك (Chrome أو Safari) ثم أعد تنزيل الصورة من هناك.');
+    } catch(err){
+      prompt('انسخ هذا الرابط والصقه في متصفحك:', location.href);
+    }
+  });
+
   document.getElementById('closeSaveModal').addEventListener('click', () => {
     modal.remove();
     URL.revokeObjectURL(imageUrl);
   });
 }
 
-$('downloadBtn').addEventListener('click', async () => {
-  const btn = $('downloadBtn');
-  const originalHTML = btn.innerHTML;
+async function handleDownloadClick(){
+  const allDownloadBtns = Array.from(document.querySelectorAll('.download-btn'));
+  const originalStates = allDownloadBtns.map(b => b.innerHTML);
 
   const missing = validateRequiredFields();
   if(missing.length){
@@ -843,8 +886,7 @@ $('downloadBtn').addEventListener('click', async () => {
     return;
   }
 
-  btn.disabled = true;
-  btn.innerHTML = 'جارٍ التجهيز…';
+  allDownloadBtns.forEach(b => { b.disabled = true; b.innerHTML = 'جارٍ التجهيز…'; });
 
   try{
     if(document.fonts && document.fonts.ready){
@@ -880,9 +922,11 @@ $('downloadBtn').addEventListener('click', async () => {
       'الأسباب الشائعة: فتح الصفحة من داخل تطبيق مثل فيسبوك أو إنستغرام (جرّب فتحها من متصفحك مباشرة)، انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد.'
     );
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalHTML;
+    allDownloadBtns.forEach((b, i) => { b.disabled = false; b.innerHTML = originalStates[i]; });
   }
+}
+document.querySelectorAll('.download-btn').forEach(btn => {
+  btn.addEventListener('click', handleDownloadClick);
 });
 
 /* ============================================================

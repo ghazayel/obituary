@@ -123,7 +123,7 @@
          </div>
         </div>
       </div>
-      <button id="downloadBtn" class="btn btn-primary btn-download">
+      <button id="downloadBtn" class="btn btn-primary btn-download download-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v13m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         تنزيل الصورة PNG
       </button>
@@ -162,7 +162,7 @@
         <legend>٢ — بيانات الفقيد</legend>
 
         <label class="field-label required" for="deceasedName">الاسم الكامل <span class="required-mark">*</span></label>
-        <input id="deceasedName" class="input" type="text" placeholder="مثال: الإسم الكامل للفقيد" required>
+        <input id="deceasedName" class="input" type="text" placeholder="الاسم الكامل للفقيد" required>
 
         <label class="field-label" for="nickname">اللقب / الكنية (اختياري)</label>
         <input id="nickname" class="input" type="text" placeholder="مثال: أبو سامح">
@@ -282,6 +282,11 @@
         <input id="footerContact" class="input" type="text" placeholder="مثال: أرقام التعازي">
       </fieldset>
 
+      <button type="button" id="downloadBtnBottom" class="btn btn-primary btn-download btn-download-bottom download-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v13m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        تنزيل الصورة PNG
+      </button>
+
     </form>
   </section>
 
@@ -299,7 +304,7 @@
   </p>
 </footer>
 
-<div id="versionTag" class="version-tag">v1.9.0</div>
+<div id="versionTag" class="version-tag">v2.1.0</div>
 
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
 <script src="app.js"></script>
