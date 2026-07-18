@@ -99,7 +99,7 @@ function swapRelationLabelsForGender(gender){
 }
 
 const OPENING_PHRASES = [
-  "وبشر الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
+  "وبشرى الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
   "سبحان الحي الذي لا يموت",
   "اللهم ألهمنا الصبر والسلوان على مصابنا الجلل",
   "إنا لله وإنا إليه راجعون",
@@ -748,8 +748,10 @@ function showInAppBrowserBanner(){
   banner.className = 'inapp-banner';
   banner.innerHTML = `
     <span>
-      يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}.
-      سنحاول تنزيل الصورة مباشرة، وإن لم ينجح ذلك سنعرض لك طرقًا بديلة للحفظ.
+      يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}،
+      وهذا النوع من المتصفحات الداخلية عادة لا يسمح بتنزيل الصور.
+      للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة واختر
+      <strong>"فتح في المتصفح"</strong> (Open in Browser)، ثم أعد تنزيل الصورة من هناك.
     </span>
     <button type="button" id="dismissInAppBanner" aria-label="إغلاق">×</button>
   `;
@@ -760,123 +762,9 @@ if(inAppBrowserName){
   showInAppBrowserBanner();
 }
 
-/* ============================================================
-   DELIVER THE FINAL IMAGE TO THE PERSON
-   Tries three strategies in order, each one a real fallback for
-   when the previous one isn't available or fails — not just a
-   "go do this yourself" message:
-
-   1) Web Share API with a file attached — hands off to the native
-      OS share sheet (Save Image / WhatsApp / Files / etc.). This
-      works even inside restricted in-app browsers, because the
-      OS — not the WebView — handles it from that point on.
-   2) A normal <a download> click on a Blob URL — works in regular
-      desktop/mobile browsers.
-   3) An on-page modal showing the image full-size with instructions
-      to press-and-hold to save it — this native "save image" long
-      press works in virtually every mobile browser, including
-      restrictive in-app ones, because it's a built-in OS/browser
-      feature on the <img> element itself, independent of any JS.
-   ============================================================ */
-async function deliverImage(blob, filename){
-  if(navigator.canShare && navigator.share){
-    try{
-      const file = new File([blob], filename, { type: 'image/png' });
-      if(navigator.canShare({ files: [file] })){
-        await navigator.share({ files: [file], title: 'نعوة', text: 'تم تصميمها عبر منشئ النعوة' });
-        return;
-      }
-    } catch(err){
-      if(err && err.name === 'AbortError') return; // person closed the share sheet — not an error
-      console.warn('Web Share failed, falling back to direct download:', err);
-    }
-  }
-
-  const objectUrl = URL.createObjectURL(blob);
-  let downloadLikelyWorked = true;
-  try{
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = objectUrl;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } catch(err){
-    downloadLikelyWorked = false;
-  }
-
-  // Inside a known in-app browser, the click above is unreliable even when
-  // it doesn't throw — so always also offer more fallback options there.
-  if(inAppBrowserName || !downloadLikelyWorked){
-    showSaveOptionsPanel(objectUrl, blob, filename);
-  } else {
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-  }
-}
-
-function showSaveOptionsPanel(imageUrl, blob, filename){
-  const modal = document.createElement('div');
-  modal.className = 'save-modal';
-  modal.innerHTML = `
-    <div class="save-modal-inner">
-      <p>يبدو أن التنزيل المباشر غير متاح في هذا المتصفح الداخلي. جرّب إحدى الطرق التالية:</p>
-
-      <button type="button" class="btn btn-primary btn-save-option" id="openImageTab">
-        فتح الصورة في نافذة جديدة (ثم اضغط عليها مطوّلًا لحفظها)
-      </button>
-
-      <button type="button" class="btn btn-secondary btn-save-option" id="copyImageBtn">
-        نسخ الصورة (للصقها في محادثة أو تطبيق آخر)
-      </button>
-
-      <button type="button" class="btn btn-secondary btn-save-option" id="copyLinkBtn">
-        نسخ رابط هذه الصفحة لفتحه في متصفحك (Chrome / Safari)
-      </button>
-
-      <p class="save-modal-note">
-        الطريقة الأضمن: اضغط على زر القائمة (⋮ أو ⋯) أعلى الشاشة واختر
-        <strong>"فتح في المتصفح"</strong>، ثم نزّل الصورة من هناك مباشرة.
-      </p>
-
-      <img src="${imageUrl}" alt="النعوة" class="save-modal-img">
-
-      <button type="button" class="btn btn-link" id="closeSaveModal">إغلاق</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  document.getElementById('openImageTab').addEventListener('click', () => {
-    window.open(imageUrl, '_blank');
-  });
-
-  document.getElementById('copyImageBtn').addEventListener('click', async () => {
-    try{
-      if(!navigator.clipboard || !window.ClipboardItem) throw new Error('unsupported');
-      await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blob }) ]);
-      alert('تم نسخ الصورة. يمكنك الآن لصقها في أي محادثة أو تطبيق ثم حفظها من هناك.');
-    } catch(err){
-      alert('نسخ الصورة غير مدعوم في هذا المتصفح. جرّب أحد الخيارات الأخرى.');
-    }
-  });
-
-  document.getElementById('copyLinkBtn').addEventListener('click', async () => {
-    try{
-      await navigator.clipboard.writeText(location.href);
-      alert('تم نسخ رابط الصفحة. الصقه في متصفحك (Chrome أو Safari) ثم أعد تنزيل الصورة من هناك.');
-    } catch(err){
-      prompt('انسخ هذا الرابط والصقه في متصفحك:', location.href);
-    }
-  });
-
-  document.getElementById('closeSaveModal').addEventListener('click', () => {
-    modal.remove();
-    URL.revokeObjectURL(imageUrl);
-  });
-}
-
-async function handleDownloadClick(){
-  const allDownloadBtns = Array.from(document.querySelectorAll('.download-btn'));
-  const originalStates = allDownloadBtns.map(b => b.innerHTML);
+$('downloadBtn').addEventListener('click', async () => {
+  const btn = $('downloadBtn');
+  const originalHTML = btn.innerHTML;
 
   const missing = validateRequiredFields();
   if(missing.length){
@@ -886,7 +774,17 @@ async function handleDownloadClick(){
     return;
   }
 
-  allDownloadBtns.forEach(b => { b.disabled = true; b.innerHTML = 'جارٍ التجهيز…'; });
+  if(inAppBrowserName){
+    const proceed = confirm(
+      `أنت تستخدم متصفح ${inAppBrowserName} الداخلي، وهو عادة لا يسمح بتنزيل الصور مباشرة.\n\n` +
+      'للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة، اختر "فتح في المتصفح"، ثم أعد المحاولة من هناك.\n\n' +
+      'اضغط "موافق" للمتابعة والمحاولة الآن رغم ذلك، أو "إلغاء" للخروج وفتح الصفحة في المتصفح أولًا.'
+    );
+    if(!proceed) return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = 'جارٍ التجهيز…';
 
   try{
     if(document.fonts && document.fonts.ready){
@@ -911,8 +809,18 @@ async function handleDownloadClick(){
     });
     if(!blob) throw new Error('لم يتمكن المتصفح من إنشاء الصورة (blob فارغ)');
 
+    // Blob object URLs are short-lived local references (blob:https://...),
+    // unlike multi-megabyte data: URLs — far more broadly supported for
+    // triggering a real file download across browsers and mobile devices.
+    const objectUrl = URL.createObjectURL(blob);
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
-    await deliverImage(blob, `نعوة_${nameSlug}.png`);
+    const link = document.createElement('a');
+    link.download = `نعوة_${nameSlug}.png`;
+    link.href = objectUrl;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
   } catch(err){
     console.error('PNG export failed:', err);
     const detail = (err && (err.message || err.name)) ? `${err.name || 'Error'}: ${err.message || ''}` : String(err);
@@ -922,11 +830,9 @@ async function handleDownloadClick(){
       'الأسباب الشائعة: فتح الصفحة من داخل تطبيق مثل فيسبوك أو إنستغرام (جرّب فتحها من متصفحك مباشرة)، انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد.'
     );
   } finally {
-    allDownloadBtns.forEach((b, i) => { b.disabled = false; b.innerHTML = originalStates[i]; });
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
   }
-}
-document.querySelectorAll('.download-btn').forEach(btn => {
-  btn.addEventListener('click', handleDownloadClick);
 });
 
 /* ============================================================
