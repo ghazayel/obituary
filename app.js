@@ -99,7 +99,7 @@ function swapRelationLabelsForGender(gender){
 }
 
 const OPENING_PHRASES = [
-  "وبشر الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
+  "وبشرى الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
   "سبحان الحي الذي لا يموت",
   "اللهم ألهمنا الصبر والسلوان على مصابنا الجلل",
   "إنا لله وإنا إليه راجعون",
@@ -194,9 +194,9 @@ function renderRelationForm(){
     const row = document.createElement('div');
     row.className = 'relation-item';
     row.innerHTML = `
+      <button type="button" class="rel-remove" title="حذف هذه الصلة" aria-label="حذف هذه الصلة">×</button>
       <input type="text" class="input rel-label" placeholder="الصلة (مثال: أشقاؤه)" value="${escapeAttr(rel.label)}">
       <input type="text" class="input rel-value" placeholder="الأسماء" value="${escapeAttr(rel.value)}">
-      <button type="button" class="rel-remove" title="حذف" aria-label="حذف">×</button>
     `;
     const [labelInput, valueInput] = row.querySelectorAll('input');
     labelInput.addEventListener('input', () => { rel.label = labelInput.value; renderCard(); });
@@ -714,6 +714,54 @@ function validateRequiredFields(){
   });
 });
 
+/* ============================================================
+   IN-APP BROWSER DETECTION (Facebook, Instagram, Messenger, etc.)
+   These are restricted WebViews, not real browsers. They can't
+   handle triggered file downloads properly — clicking a download
+   link makes them try to *navigate* to the image data as if it
+   were a webpage, which fails with a native "page can't be
+   loaded" error that our own JS never even sees or can catch.
+   The only real fix is asking the person to open the page in
+   their actual browser first, so we detect and warn proactively.
+   ============================================================ */
+function detectInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  const patterns = [
+    { key: 'FBAN|FBAV|FB_IAB', name: 'فيسبوك' },
+    { key: 'Instagram', name: 'إنستغرام' },
+    { key: 'Line/', name: 'Line' },
+    { key: 'MicroMessenger', name: 'WeChat' },
+    { key: 'TikTok', name: 'TikTok' },
+    { key: 'Twitter', name: 'Twitter/X' },
+  ];
+  for(const p of patterns){
+    if(new RegExp(p.key, 'i').test(ua)) return p.name;
+  }
+  return null;
+}
+const inAppBrowserName = detectInAppBrowser();
+
+function showInAppBrowserBanner(){
+  if(document.getElementById('inAppBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'inAppBanner';
+  banner.className = 'inapp-banner';
+  banner.innerHTML = `
+    <span>
+      يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}،
+      وهذا النوع من المتصفحات الداخلية عادة لا يسمح بتنزيل الصور.
+      للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة واختر
+      <strong>"فتح في المتصفح"</strong> (Open in Browser)، ثم أعد تنزيل الصورة من هناك.
+    </span>
+    <button type="button" id="dismissInAppBanner" aria-label="إغلاق">×</button>
+  `;
+  document.body.prepend(banner);
+  document.getElementById('dismissInAppBanner').addEventListener('click', () => banner.remove());
+}
+if(inAppBrowserName){
+  showInAppBrowserBanner();
+}
+
 $('downloadBtn').addEventListener('click', async () => {
   const btn = $('downloadBtn');
   const originalHTML = btn.innerHTML;
@@ -724,6 +772,15 @@ $('downloadBtn').addEventListener('click', async () => {
     missing[0].input.focus();
     alert(`الرجاء تعبئة الحقول المطلوبة أولًا:\n${missing.map(m => '• ' + m.label).join('\n')}`);
     return;
+  }
+
+  if(inAppBrowserName){
+    const proceed = confirm(
+      `أنت تستخدم متصفح ${inAppBrowserName} الداخلي، وهو عادة لا يسمح بتنزيل الصور مباشرة.\n\n` +
+      'للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة، اختر "فتح في المتصفح"، ثم أعد المحاولة من هناك.\n\n' +
+      'اضغط "موافق" للمتابعة والمحاولة الآن رغم ذلك، أو "إلغاء" للخروج وفتح الصفحة في المتصفح أولًا.'
+    );
+    if(!proceed) return;
   }
 
   btn.disabled = true;
@@ -741,7 +798,7 @@ $('downloadBtn').addEventListener('click', async () => {
       console.warn('Font embedding failed, falling back to default export behaviour:', e);
     }
 
-    const dataUrl = await htmlToImage.toPng(el.card, {
+    const blob = await htmlToImage.toBlob(el.card, {
       width: 794,
       height: 1123,
       pixelRatio: 3,
@@ -750,18 +807,27 @@ $('downloadBtn').addEventListener('click', async () => {
       style: { transform: 'none' }, // ignore the on-screen preview scale, keep true A4 size
       ...(fontEmbedCss ? { fontEmbedCSS: fontEmbedCss } : {}),
     });
-    const link = document.createElement('a');
+    if(!blob) throw new Error('لم يتمكن المتصفح من إنشاء الصورة (blob فارغ)');
+
+    // Blob object URLs are short-lived local references (blob:https://...),
+    // unlike multi-megabyte data: URLs — far more broadly supported for
+    // triggering a real file download across browsers and mobile devices.
+    const objectUrl = URL.createObjectURL(blob);
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
+    const link = document.createElement('a');
     link.download = `نعوة_${nameSlug}.png`;
-    link.href = dataUrl;
+    link.href = objectUrl;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
   } catch(err){
     console.error('PNG export failed:', err);
     const detail = (err && (err.message || err.name)) ? `${err.name || 'Error'}: ${err.message || ''}` : String(err);
     alert(
       'حدث خطأ أثناء إنشاء الصورة.\n\n' +
       'تفاصيل تقنية (للمساعدة في التشخيص):\n' + detail + '\n\n' +
-      'الأسباب الشائعة: انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد. جرّب تعطيل مانع الإعلانات أو تحديث الصفحة والمحاولة مجددًا.'
+      'الأسباب الشائعة: فتح الصفحة من داخل تطبيق مثل فيسبوك أو إنستغرام (جرّب فتحها من متصفحك مباشرة)، انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد.'
     );
   } finally {
     btn.disabled = false;
