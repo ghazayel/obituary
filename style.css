@@ -371,9 +371,36 @@ body{
   padding: 4px 8px;
 }
 
+.save-modal{
+  position: fixed; inset: 0;
+  z-index: 100;
+  background: rgba(20, 18, 15, 0.82);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.save-modal-inner{
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.save-modal-inner p{ margin: 0; font-size: 14px; color: var(--ink); line-height: 1.6; }
+.save-modal-inner img{
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  -webkit-touch-callout: default; /* explicitly allow the native long-press menu */
+}
+.save-modal-inner .btn{ align-self: center; }
+
 /* relation rows in form */
 .relation-item{
-  display:flex; gap:8px; align-items:flex-start;
+  display:flex; gap:8px; align-items:center;
   border:1px solid var(--rule); border-radius:8px;
   padding:10px; margin-bottom:8px; background:#fdfcfa;
 }
@@ -382,7 +409,6 @@ body{
 .rel-remove{
   flex-shrink: 0;
   width: 28px; height: 28px;
-  margin-top: 3px;
   display: flex; align-items:center; justify-content:center;
   background: #F6E4E1;
   border: 1px solid #E7C4BE;

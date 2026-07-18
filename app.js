@@ -748,10 +748,8 @@ function showInAppBrowserBanner(){
   banner.className = 'inapp-banner';
   banner.innerHTML = `
     <span>
-      يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}،
-      وهذا النوع من المتصفحات الداخلية عادة لا يسمح بتنزيل الصور.
-      للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة واختر
-      <strong>"فتح في المتصفح"</strong> (Open in Browser)، ثم أعد تنزيل الصورة من هناك.
+      يبدو أنك تفتح الصفحة من داخل تطبيق ${inAppBrowserName ? '"' + inAppBrowserName + '"' : ''}.
+      سنحاول تنزيل الصورة مباشرة، وإن لم ينجح ذلك سنعرضها لك لحفظها بالضغط المطوّل عليها.
     </span>
     <button type="button" id="dismissInAppBanner" aria-label="إغلاق">×</button>
   `;
@@ -760,6 +758,77 @@ function showInAppBrowserBanner(){
 }
 if(inAppBrowserName){
   showInAppBrowserBanner();
+}
+
+/* ============================================================
+   DELIVER THE FINAL IMAGE TO THE PERSON
+   Tries three strategies in order, each one a real fallback for
+   when the previous one isn't available or fails — not just a
+   "go do this yourself" message:
+
+   1) Web Share API with a file attached — hands off to the native
+      OS share sheet (Save Image / WhatsApp / Files / etc.). This
+      works even inside restricted in-app browsers, because the
+      OS — not the WebView — handles it from that point on.
+   2) A normal <a download> click on a Blob URL — works in regular
+      desktop/mobile browsers.
+   3) An on-page modal showing the image full-size with instructions
+      to press-and-hold to save it — this native "save image" long
+      press works in virtually every mobile browser, including
+      restrictive in-app ones, because it's a built-in OS/browser
+      feature on the <img> element itself, independent of any JS.
+   ============================================================ */
+async function deliverImage(blob, filename){
+  if(navigator.canShare && navigator.share){
+    try{
+      const file = new File([blob], filename, { type: 'image/png' });
+      if(navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: 'نعوة', text: 'تم تصميمها عبر منشئ النعوة' });
+        return;
+      }
+    } catch(err){
+      if(err && err.name === 'AbortError') return; // person closed the share sheet — not an error
+      console.warn('Web Share failed, falling back to direct download:', err);
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  let downloadLikelyWorked = true;
+  try{
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = objectUrl;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch(err){
+    downloadLikelyWorked = false;
+  }
+
+  // Inside a known in-app browser, the click above is unreliable even when
+  // it doesn't throw — so always also offer the long-press fallback there.
+  if(inAppBrowserName || !downloadLikelyWorked){
+    showSaveImageModal(objectUrl);
+  } else {
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  }
+}
+
+function showSaveImageModal(imageUrl){
+  const modal = document.createElement('div');
+  modal.className = 'save-modal';
+  modal.innerHTML = `
+    <div class="save-modal-inner">
+      <p>اضغط مطوّلًا على الصورة أدناه، ثم اختر <strong>"حفظ الصورة"</strong> لتنزيلها</p>
+      <img src="${imageUrl}" alt="النعوة">
+      <button type="button" class="btn btn-secondary" id="closeSaveModal">إغلاق</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('closeSaveModal').addEventListener('click', () => {
+    modal.remove();
+    URL.revokeObjectURL(imageUrl);
+  });
 }
 
 $('downloadBtn').addEventListener('click', async () => {
@@ -772,15 +841,6 @@ $('downloadBtn').addEventListener('click', async () => {
     missing[0].input.focus();
     alert(`الرجاء تعبئة الحقول المطلوبة أولًا:\n${missing.map(m => '• ' + m.label).join('\n')}`);
     return;
-  }
-
-  if(inAppBrowserName){
-    const proceed = confirm(
-      `أنت تستخدم متصفح ${inAppBrowserName} الداخلي، وهو عادة لا يسمح بتنزيل الصور مباشرة.\n\n` +
-      'للتنزيل بنجاح: اضغط على زر القائمة (⋮ أو ⋯) أعلى الصفحة، اختر "فتح في المتصفح"، ثم أعد المحاولة من هناك.\n\n' +
-      'اضغط "موافق" للمتابعة والمحاولة الآن رغم ذلك، أو "إلغاء" للخروج وفتح الصفحة في المتصفح أولًا.'
-    );
-    if(!proceed) return;
   }
 
   btn.disabled = true;
@@ -809,18 +869,8 @@ $('downloadBtn').addEventListener('click', async () => {
     });
     if(!blob) throw new Error('لم يتمكن المتصفح من إنشاء الصورة (blob فارغ)');
 
-    // Blob object URLs are short-lived local references (blob:https://...),
-    // unlike multi-megabyte data: URLs — far more broadly supported for
-    // triggering a real file download across browsers and mobile devices.
-    const objectUrl = URL.createObjectURL(blob);
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
-    const link = document.createElement('a');
-    link.download = `نعوة_${nameSlug}.png`;
-    link.href = objectUrl;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    await deliverImage(blob, `نعوة_${nameSlug}.png`);
   } catch(err){
     console.error('PNG export failed:', err);
     const detail = (err && (err.message || err.name)) ? `${err.name || 'Error'}: ${err.message || ''}` : String(err);
