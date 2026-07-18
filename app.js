@@ -99,7 +99,7 @@ function swapRelationLabelsForGender(gender){
 }
 
 const OPENING_PHRASES = [
-  "وبشر الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
+  "وبشرى الصابرين الذين إذا أصابتهم مصيبة قالوا إنا لله وإنا إليه راجعون",
   "سبحان الحي الذي لا يموت",
   "اللهم ألهمنا الصبر والسلوان على مصابنا الجلل",
   "إنا لله وإنا إليه راجعون",
@@ -658,40 +658,27 @@ async function buildLocalFontEmbedCss(){
 }
 
 async function buildGoogleFontEmbedCss(){
-  try {
-    const res = await fetch(GOOGLE_FONTS_CSS_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const cssText = await res.text();
+  const cssText = await fetch(GOOGLE_FONTS_CSS_URL).then(r => r.text());
+  const fontUrls = [...cssText.matchAll(/url\((https:\/\/[^)]+)\)/g)].map(m => m[1]);
 
-    // Robust regex: tolerate optional whitespace and quotes around the URL
-    const fontUrlRegex = /url\(\s*['"]?(https?:\/\/[^'")]+)['"]?\s*\)/g;
-    let fontUrls = [...cssText.matchAll(fontUrlRegex)].map(m => m[1]);
-    fontUrls = [...new Set(fontUrls)]; // deduplicate
-
-    let embedded = cssText;
-    await Promise.all(fontUrls.map(async (url) => {
-      try {
-        const fontRes = await fetch(url);
-        if (!fontRes.ok) throw new Error(`HTTP ${fontRes.status}`);
-        const dataUrl = await blobToDataUrl(await fontRes.blob());
-        embedded = embedded.split(url).join(dataUrl);
-      } catch (e) {
-        console.warn('Could not embed font file, export may fall back for it:', url, e);
-      }
-    }));
-    return embedded;
-  } catch (e) {
-    console.warn('Failed to build Google Fonts embed CSS (network/CORS/adblock?), falling back to default fonts in export:', e);
-    return '';
-  }
+  let embedded = cssText;
+  await Promise.all(fontUrls.map(async (url) => {
+    try{
+      const dataUrl = await blobToDataUrl(await fetch(url).then(r => r.blob()));
+      embedded = embedded.split(url).join(dataUrl);
+    } catch(e){
+      console.warn('Could not embed font file, export may fall back for it:', url, e);
+    }
+  }));
+  return embedded;
 }
 
 async function buildFontEmbedCss(){
-  if (cachedFontEmbedCss != null) return cachedFontEmbedCss;
-  try {
+  if(cachedFontEmbedCss) return cachedFontEmbedCss;
+  try{
     cachedFontEmbedCss = await buildLocalFontEmbedCss();
     return cachedFontEmbedCss;
-  } catch (e) {
+  } catch(e){
     console.info('Local font files not found (this is optional), falling back to Google Fonts for the export:', e.message);
   }
   cachedFontEmbedCss = await buildGoogleFontEmbedCss();
@@ -783,7 +770,7 @@ $('downloadBtn').addEventListener('click', async () => {
     alert(
       'حدث خطأ أثناء إنشاء الصورة.\n\n' +
       'تفاصيل تقنية (للمساعدة في التشخيص):\n' + detail + '\n\n' +
-      'الأسباب الشائعة: فتح الصفحة من داخل تطبيق مثل فيسبوك أو إنستغرام (جرّب فتحها من متصفحك مباشرة)، انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد.'
+      'نصيحة: تأكد من أنك تفتح الصفحة في متصفح عادي (وليس داخل تطبيق)، وأن اتصال الإنترنت مستقر.'
     );
   } finally {
     btn.disabled = false;
