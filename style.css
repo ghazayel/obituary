@@ -348,29 +348,6 @@ body{
   z-index: 50;
 }
 
-.inapp-banner{
-  position: sticky;
-  top: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: #FCEFC7;
-  color: #6B4E00;
-  border-bottom: 1px solid #E8D48A;
-  padding: 10px 18px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.inapp-banner strong{ font-weight: 800; }
-.inapp-banner button{
-  flex-shrink: 0;
-  background: none; border: none; cursor: pointer;
-  font-size: 18px; line-height: 1; color: #6B4E00;
-  padding: 4px 8px;
-}
-
 .save-modal{
   position: fixed; inset: 0;
   z-index: 100;
@@ -390,13 +367,6 @@ body{
   overflow-y: auto;
 }
 .save-modal-inner p{ margin: 0; font-size: 14px; color: var(--ink); line-height: 1.6; }
-.save-modal-note{
-  background: var(--accent-soft);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px !important;
-  color: var(--ink);
-}
 .btn-save-option{ width: 100%; justify-content: center; text-align:center; white-space: normal; line-height:1.4; }
 .save-modal-img{
   width: 100%;

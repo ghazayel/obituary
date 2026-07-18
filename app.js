@@ -194,9 +194,9 @@ function renderRelationForm(){
     const row = document.createElement('div');
     row.className = 'relation-item';
     row.innerHTML = `
+      <button type="button" class="rel-remove" title="حذف هذه الصلة" aria-label="حذف هذه الصلة">×</button>
       <input type="text" class="input rel-label" placeholder="الصلة (مثال: أشقاؤه)" value="${escapeAttr(rel.label)}">
       <input type="text" class="input rel-value" placeholder="الأسماء" value="${escapeAttr(rel.value)}">
-      <button type="button" class="rel-remove" title="حذف" aria-label="حذف">×</button>
     `;
     const [labelInput, valueInput] = row.querySelectorAll('input');
     labelInput.addEventListener('input', () => { rel.label = labelInput.value; renderCard(); });
@@ -262,6 +262,11 @@ el.openingCustom.addEventListener('input', renderCard);
    ============================================================ */
 const CARD_FRAME_W = 120, CARD_FRAME_H = 142;     // matches .card-photo-frame in CSS
 const EDITOR_FRAME_W = 200, EDITOR_FRAME_H = 237; // matches .photo-editor-frame in CSS (same aspect ratio)
+// 1x1 transparent GIF — a safe permanent fallback so these <img> elements
+// never sit with an empty/unset src. An empty src resolves to the current
+// page's own URL (a relative reference back to "here"), which some export
+// tools then try to fetch as if it were an image, and fail.
+const BLANK_IMG_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
 el.photoInput.addEventListener('change', () => {
   const file = el.photoInput.files[0];
@@ -290,6 +295,8 @@ el.photoInput.addEventListener('change', () => {
 el.removePhoto.addEventListener('click', () => {
   state.photo = { dataUrl: null, naturalW: 0, naturalH: 0, rotation: 0, zoom: 1, offsetX: 0, offsetY: 0 };
   el.photoInput.value = '';
+  el.outPhoto.src = BLANK_IMG_SRC;
+  el.photoEditorImg.src = BLANK_IMG_SRC;
   el.removePhoto.hidden = true;
   el.photoEditor.hidden = true;
   renderCard();
@@ -562,6 +569,7 @@ function renderCard(){
     applyPhotoTransform();
   } else {
     el.outPhotoWrap.hidden = true;
+    if(el.outPhoto.src !== BLANK_IMG_SRC) el.outPhoto.src = BLANK_IMG_SRC;
   }
 
   // relations
@@ -714,9 +722,171 @@ function validateRequiredFields(){
   });
 });
 
-$('downloadBtn').addEventListener('click', async () => {
-  const btn = $('downloadBtn');
-  const originalHTML = btn.innerHTML;
+/* ============================================================
+   DELIVER THE FINAL IMAGE TO THE PERSON
+   Tries strategies in order, each a real fallback for when the
+   previous one isn't available or fails:
+
+   1) Web Share API with a file attached — but ONLY on phones/
+      tablets. Desktop Chrome/Edge on Windows now also implement
+      navigator.share, which would otherwise hijack a normal
+      desktop download into an unexpected OS share popup. On
+      mobile this is genuinely useful (native Save Image / send
+      to an app), so it stays there.
+   2) A normal <a download> click on a Blob URL — the default for
+      everyone else, behaves like a regular image download.
+   3) A fallback panel (open in new tab / copy image / copy link)
+      only shown if the direct download demonstrably failed.
+   ============================================================ */
+function isMobileDevice(){
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+}
+
+async function deliverImage(blob, filename){
+  if(isMobileDevice() && navigator.canShare && navigator.share){
+    try{
+      const file = new File([blob], filename, { type: 'image/png' });
+      if(navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: 'نعوة', text: 'تم تصميمها عبر منشئ النعوة' });
+        return;
+      }
+    } catch(err){
+      if(err && err.name === 'AbortError') return; // person closed the share sheet — not an error
+      console.warn('Web Share failed, falling back to direct download:', err);
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  let downloadLikelyWorked = true;
+  try{
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = objectUrl;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch(err){
+    downloadLikelyWorked = false;
+  }
+
+  if(!downloadLikelyWorked){
+    showSaveOptionsPanel(objectUrl, blob, filename);
+  } else {
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  }
+}
+
+function showSaveOptionsPanel(imageUrl, blob, filename){
+  const modal = document.createElement('div');
+  modal.className = 'save-modal';
+  modal.innerHTML = `
+    <div class="save-modal-inner">
+      <p>يبدو أن التنزيل المباشر لم ينجح. جرّب إحدى الطرق التالية:</p>
+
+      <button type="button" class="btn btn-primary btn-save-option" id="openImageTab">
+        فتح الصورة في نافذة جديدة (ثم اضغط عليها مطوّلًا لحفظها)
+      </button>
+
+      <button type="button" class="btn btn-secondary btn-save-option" id="copyImageBtn">
+        نسخ الصورة (للصقها في محادثة أو تطبيق آخر)
+      </button>
+
+      <button type="button" class="btn btn-secondary btn-save-option" id="copyLinkBtn">
+        نسخ رابط هذه الصفحة لفتحه في متصفحك (Chrome / Safari)
+      </button>
+
+      <img src="${imageUrl}" alt="النعوة" class="save-modal-img">
+
+      <button type="button" class="btn btn-link" id="closeSaveModal">إغلاق</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('openImageTab').addEventListener('click', () => {
+    window.open(imageUrl, '_blank');
+  });
+
+  document.getElementById('copyImageBtn').addEventListener('click', async () => {
+    try{
+      if(!navigator.clipboard || !window.ClipboardItem) throw new Error('unsupported');
+      await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blob }) ]);
+      alert('تم نسخ الصورة. يمكنك الآن لصقها في أي محادثة أو تطبيق ثم حفظها من هناك.');
+    } catch(err){
+      alert('نسخ الصورة غير مدعوم في هذا المتصفح. جرّب أحد الخيارات الأخرى.');
+    }
+  });
+
+  document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(location.href);
+      alert('تم نسخ رابط الصفحة. الصقه في متصفحك (Chrome أو Safari) ثم أعد تنزيل الصورة من هناك.');
+    } catch(err){
+      prompt('انسخ هذا الرابط والصقه في متصفحك:', location.href);
+    }
+  });
+
+  document.getElementById('closeSaveModal').addEventListener('click', () => {
+    modal.remove();
+    URL.revokeObjectURL(imageUrl);
+  });
+}
+
+/* Turn any thrown value (Error, DOMException, or a raw failed-resource
+   Event — html-to-image sometimes rejects with the image's own error
+   Event instead of a proper Error) into a readable string. */
+function describeError(err){
+  if(!err) return 'خطأ غير معروف';
+  if(err instanceof Error) return `${err.name || 'Error'}: ${err.message || '(بلا رسالة)'}`;
+  if(typeof Event !== 'undefined' && err instanceof Event){
+    const target = err.target;
+    const targetInfo = target ? `${target.tagName || ''}${target.src ? ' src=' + String(target.src).slice(0, 80) : ''}` : '';
+    return `فشل تحميل مورد أثناء إنشاء الصورة (${err.type}${targetInfo ? ', ' + targetInfo : ''})`;
+  }
+  try{ return JSON.stringify(err); } catch(e){ return String(err); }
+}
+
+/* Try to export with the embedded custom fonts first (best visual match
+   to the on-screen preview). If that fails for ANY reason — including
+   the oversized-embedded-font-data edge case that can break the
+   underlying SVG image render — retry once with no font embedding at
+   all, so a font problem never blocks the download entirely. */
+async function exportCardToBlob(){
+  const baseOptions = {
+    width: 794,
+    height: 1123,
+    pixelRatio: 3,
+    backgroundColor: '#ffffff',
+    cacheBust: true,
+    style: { transform: 'none' },
+  };
+
+  let fontEmbedCss;
+  try{
+    fontEmbedCss = await buildFontEmbedCss();
+  } catch(e){
+    console.warn('Font embedding failed, exporting without it:', e);
+  }
+
+  if(fontEmbedCss){
+    try{
+      const blob = await htmlToImage.toBlob(el.card, { ...baseOptions, fontEmbedCSS: fontEmbedCss });
+      if(blob) return blob;
+    } catch(err){
+      console.warn('Export with embedded fonts failed, retrying without font embedding:', err);
+    }
+  }
+
+  // fallback: no custom font embedding — relies on whatever html-to-image
+  // manages on its own. Slightly less guaranteed to match the on-screen
+  // font exactly, but far more likely to succeed.
+  const blob = await htmlToImage.toBlob(el.card, baseOptions);
+  if(!blob) throw new Error('لم يتمكن المتصفح من إنشاء الصورة (blob فارغ)');
+  return blob;
+}
+
+async function handleDownloadClick(){
+  const allDownloadBtns = Array.from(document.querySelectorAll('.download-btn'));
+  const originalStates = allDownloadBtns.map(b => b.innerHTML);
 
   const missing = validateRequiredFields();
   if(missing.length){
@@ -726,47 +896,29 @@ $('downloadBtn').addEventListener('click', async () => {
     return;
   }
 
-  btn.disabled = true;
-  btn.innerHTML = 'جارٍ التجهيز…';
+  allDownloadBtns.forEach(b => { b.disabled = true; b.innerHTML = 'جارٍ التجهيز…'; });
 
   try{
     if(document.fonts && document.fonts.ready){
       await document.fonts.ready;
     }
 
-    let fontEmbedCss;
-    try{
-      fontEmbedCss = await buildFontEmbedCss();
-    } catch(e){
-      console.warn('Font embedding failed, falling back to default export behaviour:', e);
-    }
-
-    const dataUrl = await htmlToImage.toPng(el.card, {
-      width: 794,
-      height: 1123,
-      pixelRatio: 3,
-      backgroundColor: '#ffffff',
-      cacheBust: true,
-      style: { transform: 'none' }, // ignore the on-screen preview scale, keep true A4 size
-      ...(fontEmbedCss ? { fontEmbedCSS: fontEmbedCss } : {}),
-    });
-    const link = document.createElement('a');
+    const blob = await exportCardToBlob();
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
-    link.download = `نعوة_${nameSlug}.png`;
-    link.href = dataUrl;
-    link.click();
+    await deliverImage(blob, `نعوة_${nameSlug}.png`);
   } catch(err){
     console.error('PNG export failed:', err);
-    const detail = (err && (err.message || err.name)) ? `${err.name || 'Error'}: ${err.message || ''}` : String(err);
     alert(
       'حدث خطأ أثناء إنشاء الصورة.\n\n' +
-      'تفاصيل تقنية (للمساعدة في التشخيص):\n' + detail + '\n\n' +
-      'الأسباب الشائعة: انقطاع الاتصال بالإنترنت أثناء تحميل الخطوط، أو حظر مانع إعلانات لبعض الموارد. جرّب تعطيل مانع الإعلانات أو تحديث الصفحة والمحاولة مجددًا.'
+      'تفاصيل تقنية (للمساعدة في التشخيص):\n' + describeError(err) + '\n\n' +
+      'جرّب تحديث الصفحة والمحاولة مجددًا. إذا تكرر الخطأ، أرسل لي نص "التفاصيل التقنية" أعلاه بالضبط لأتمكن من تحديد السبب.'
     );
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalHTML;
+    allDownloadBtns.forEach((b, i) => { b.disabled = false; b.innerHTML = originalStates[i]; });
   }
+}
+document.querySelectorAll('.download-btn').forEach(btn => {
+  btn.addEventListener('click', handleDownloadClick);
 });
 
 /* ============================================================
