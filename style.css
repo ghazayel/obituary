@@ -167,6 +167,7 @@ body{
   display:flex; justify-content:center; margin: 8px 0 2px;
   flex-shrink: 0;
 }
+.card-photo-wrap[hidden]{ display: none; }
 .card-photo-frame{
   width: 120px; height:142px;
   border: 1px solid #000;
