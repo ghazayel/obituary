@@ -52,6 +52,23 @@
   "author": { "@type": "Person", "name": "محمود غزيّل", "url": "https://www.facebook.com/ghazayel/" }
 }
 </script>
+
+<!-- ============================================================
+     Google Analytics — لمعرفة عدد الأشخاص الذين ضغطوا زر التنزيل
+     خطوات التفعيل:
+     1) أنشئ حساب مجاني على analytics.google.com إن لم يكن لديك واحد
+     2) أنشئ "خاصية GA4" (GA4 property) لهذا الموقع
+     3) انسخ "رقم القياس" (Measurement ID) الذي يبدأ بـ G-
+     4) استبدل G-1EKN3VG5YD في السطرين أدناه برقمك
+     بدون هذه الخطوة، الموقع يعمل بشكل طبيعي تمامًا، فقط لا يوجد تتبع.
+     ============================================================ -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1EKN3VG5YD"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-1EKN3VG5YD');
+</script>
 </head>
 <body>
 
@@ -303,7 +320,7 @@
   </p>
 </footer>
 
-<div id="versionTag" class="version-tag">v2.5.1</div>
+<div id="versionTag" class="version-tag">v2.7.0</div>
 
 <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
 <script src="app.js"></script>

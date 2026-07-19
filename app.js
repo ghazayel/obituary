@@ -951,6 +951,34 @@ async function exportCardToBlob(){
   return blob;
 }
 
+/* Fires a GA4 event if Google Analytics is set up (see index.html for
+   setup steps); silently does nothing otherwise, so the site behaves
+   identically whether or not analytics is configured. */
+function trackEvent(eventName, extra){
+  if(typeof gtag === 'function'){
+    gtag('event', eventName, extra || {});
+  }
+}
+
+/* Catch ANY unexpected error anywhere on the page — not just the
+   download flow — so problems in other features (photo editor,
+   date picking, etc.) are visible too, without needing someone to
+   actually report them. Shows up in GA as a "js_error" event with
+   the message and location, so it's diagnosable, not just a count. */
+window.addEventListener('error', (e) => {
+  trackEvent('js_error', {
+    event_category: 'error',
+    message: String(e.message || '').slice(0, 150),
+    location: `${(e.filename || '').split('/').pop()}:${e.lineno || ''}`,
+  });
+});
+window.addEventListener('unhandledrejection', (e) => {
+  trackEvent('js_error', {
+    event_category: 'error',
+    message: 'unhandled promise rejection: ' + describeError(e.reason).slice(0, 150),
+  });
+});
+
 async function handleDownloadClick(){
   const allDownloadBtns = Array.from(document.querySelectorAll('.download-btn'));
   const originalStates = allDownloadBtns.map(b => b.innerHTML);
@@ -963,6 +991,8 @@ async function handleDownloadClick(){
     return;
   }
 
+  trackEvent('download_click', { event_category: 'engagement' });
+
   allDownloadBtns.forEach(b => { b.disabled = true; b.innerHTML = 'جارٍ التجهيز…'; });
 
   try{
@@ -973,8 +1003,10 @@ async function handleDownloadClick(){
     const blob = await exportCardToBlob();
     const nameSlug = (el.deceasedName.value.trim() || 'نعوة').replace(/\s+/g,'_');
     await deliverImage(blob, `نعوة_${nameSlug}.png`);
+    trackEvent('download_success', { event_category: 'engagement' });
   } catch(err){
     console.error('PNG export failed:', err);
+    trackEvent('download_failed', { event_category: 'engagement', error_detail: describeError(err).slice(0, 100) });
     alert(
       'حدث خطأ أثناء إنشاء الصورة.\n\n' +
       'تفاصيل تقنية (للمساعدة في التشخيص):\n' + describeError(err) + '\n\n' +
@@ -987,6 +1019,7 @@ async function handleDownloadClick(){
 document.querySelectorAll('.download-btn').forEach(btn => {
   btn.addEventListener('click', handleDownloadClick);
 });
+
 
 /* ============================================================
    BOOT
