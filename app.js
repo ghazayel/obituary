@@ -2,6 +2,73 @@
 "use strict";
 
 /* ============================================================
+   ESCAPE FACEBOOK/INSTAGRAM/ETC IN-APP BROWSERS
+   These are restricted WebViews, not real browsers — they can
+   silently break file downloads no matter what a page tries.
+   The only real fix is getting the person into their actual
+   system browser. This runs immediately on load, before anything
+   else, so it happens as early as possible:
+
+   - Android: the intent:// URL scheme can force-navigate straight
+     into the device's normal browser — this is a genuine, silent
+     redirect, not just a suggestion, and is the standard technique
+     sites use for this exact problem.
+   - iOS: Apple does not allow a page to silently hand off to
+     Safari from inside another app's WebView — there is no fully
+     automatic method. The best available option is the
+     "x-safari-https://" URL scheme, which works some of the time
+     depending on iOS version, backed by an unmissable full-screen
+     prompt with manual instructions as a guaranteed fallback.
+   ============================================================ */
+(function escapeInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  const inAppNames = [
+    { re: /FBAN|FBAV|FB_IAB/i, name: 'فيسبوك' },
+    { re: /Instagram/i, name: 'إنستغرام' },
+    { re: /Line\//i, name: 'Line' },
+    { re: /MicroMessenger/i, name: 'WeChat' },
+    { re: /TikTok/i, name: 'TikTok' },
+    { re: /Twitter/i, name: 'Twitter/X' },
+  ];
+  const match = inAppNames.find(p => p.re.test(ua));
+  if(!match) return; // real browser — nothing to do
+
+  const isAndroid = /Android/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+  if(isAndroid){
+    const bare = location.href.replace(/^https?:\/\//, '');
+    const intentUrl = `intent://${bare}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
+    window.location.href = intentUrl;
+    return; // page is navigating away now
+  }
+
+  if(isIOS){
+    // Show the overlay first (guaranteed to be seen even if the scheme below
+    // silently fails), then also attempt the semi-automatic Safari handoff.
+    document.addEventListener('DOMContentLoaded', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'escape-overlay';
+      overlay.innerHTML = `
+        <div class="escape-overlay-inner">
+          <p class="escape-overlay-title">افتح هذه الصفحة في Safari</p>
+          <p>متصفح ${match.name} الداخلي لا يسمح بتنزيل الصور. لإتمام التنزيل، افتح الصفحة في Safari:</p>
+          <button type="button" class="btn btn-primary" id="escapeToSafariBtn">فتح في Safari</button>
+          <p class="escape-overlay-note">إذا لم يعمل الزر: اضغط على زر المشاركة
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            أسفل الشاشة، ثم اختر "فتح في المتصفح" أو "Open in Safari".</p>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      document.getElementById('escapeToSafariBtn').addEventListener('click', () => {
+        window.location.href = location.href.replace(/^https:\/\//, 'x-safari-https://').replace(/^http:\/\//, 'x-safari-http://');
+      });
+    });
+  }
+})();
+
+
+/* ============================================================
    HIJRI DATE CONVERSION
    Arithmetic (tabular) Islamic calendar, public-domain formulas
    (Calendrical Calculations / Fourmilab), epoch nudged by one
@@ -747,7 +814,7 @@ async function deliverImage(blob, filename){
     try{
       const file = new File([blob], filename, { type: 'image/png' });
       if(navigator.canShare({ files: [file] })){
-        await navigator.share({ files: [file], title: 'نعوة', text: 'تم تصميمها عبر منشئ النعوة' });
+        await navigator.share({ files: [file], title: 'نعوة', text: 'صدقة جارية عن روح الدكتور غازي غزيّل وزوجته جمال ملك' });
         return;
       }
     } catch(err){

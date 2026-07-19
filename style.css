@@ -348,6 +348,30 @@ body{
   z-index: 50;
 }
 
+.escape-overlay{
+  position: fixed; inset: 0;
+  z-index: 200;
+  background: rgba(20, 18, 15, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.escape-overlay-inner{
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px 24px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.escape-overlay-title{
+  font-size: 19px; font-weight: 800; margin: 0;
+  font-family: var(--font-body);
+}
+.escape-overlay-inner p{ margin: 0; font-size: 14px; line-height: 1.7; color: var(--ink); }
+.escape-overlay-note{ color: var(--muted); font-size: 13px !important; }
+.escape-overlay-inner .btn{ align-self: center; padding: 13px 28px; font-size: 15px; }
+
 .save-modal{
   position: fixed; inset: 0;
   z-index: 100;
