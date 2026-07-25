@@ -95,7 +95,7 @@ body{
 }
 
 /* ===================== PREVIEW ===================== */
-.preview-pane{ position:relative; }
+.preview-pane{ position:relative; min-width: 0; }
 .preview-sticky{ position: sticky; top: 84px; display:flex; flex-direction:column; align-items:center; gap:14px; }
 
 .a4-wrap{
@@ -259,7 +259,7 @@ body{
 }
 
 /* ===================== FORM ===================== */
-.form-pane{ padding-bottom: 60px; }
+.form-pane{ padding-bottom: 60px; min-width: 0; }
 #form{ display:flex; flex-direction:column; gap: 18px; }
 
 .field-group{ margin-bottom: 4px; }
