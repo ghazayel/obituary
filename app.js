@@ -144,6 +144,7 @@ function formatTime12(hhmm){
 const DEFAULT_RELATIONS = [
   { label: "والده", value: "" },
   { label: "والدته", value: "" },
+  { label: "زوجته", value: "" },
   { label: "أبناؤه", value: "" },
   { label: "بناته", value: "" },
   { label: "أشقاؤه", value: "" },
@@ -153,8 +154,8 @@ const DEFAULT_RELATIONS = [
 // male <-> female preset label pairs, matched by index, so switching
 // gender updates any still-default relation labels automatically
 // without touching labels the person has customized themselves.
-const MALE_RELATION_LABELS   = ["والده","والدته","أبناؤه","بناته","أشقاؤه","شقيقاته"];
-const FEMALE_RELATION_LABELS = ["والدها","والدتها","أبناؤها","بناتها","أشقاؤها","شقيقاتها"];
+const MALE_RELATION_LABELS   = ["والده","والدته","زوجته","أبناؤه","بناته","أشقاؤه","شقيقاته"];
+const FEMALE_RELATION_LABELS = ["والدها","والدتها","زوجها","أبناؤها","بناتها","أشقاؤها","شقيقاتها"];
 
 function swapRelationLabelsForGender(gender){
   const from = gender === 'female' ? MALE_RELATION_LABELS : FEMALE_RELATION_LABELS;
@@ -665,6 +666,8 @@ function renderCard(){
 
   // make sure everything fits within one fixed A4 page
   fitContentToPage();
+
+  scheduleSaveDraft();
 }
 
 /* ============================================================
@@ -1022,10 +1025,148 @@ document.querySelectorAll('.download-btn').forEach(btn => {
 
 
 /* ============================================================
+   AUTO-SAVE DRAFT (survives ~30 minutes, including a page reload)
+   Mobile browsers sometimes silently reload a backgrounded tab to
+   free memory — normally that would wipe out everything someone
+   typed. This saves the whole form (including the photo) to
+   localStorage on every change, and quietly restores it if the
+   page reloads within 30 minutes, so the data survives even
+   though it's technically a fresh page load under the hood.
+   ============================================================ */
+const DRAFT_KEY = 'obituary_draft_v1';
+const DRAFT_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+const DRAFT_FIELD_IDS = [
+  'openingSelect', 'openingCustom', 'announcerFamilies', 'noticeText',
+  'deceasedName', 'nickname',
+  'prayerDate', 'prayerTime', 'hijriAdjust', 'monthStyle', 'mosqueName', 'burialLocation', 'funeralAuto',
+  'condolenceFrom', 'condolenceTo', 'condolenceMen', 'condolenceWomen', 'condolenceAuto',
+  'closingAuto', 'footerContact',
+];
+
+let draftSaveSuppressed = false;
+
+function saveDraft(){
+  if(draftSaveSuppressed) return;
+  try{
+    const fields = {};
+    DRAFT_FIELD_IDS.forEach(id => { fields[id] = el[id].value; });
+    const draft = {
+      savedAt: Date.now(),
+      gender: state.gender,
+      relations: state.relations,
+      dirty: state.dirty,
+      photo: state.photo,
+      fields,
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch(e){
+    console.warn('Auto-save failed (storage may be full or unavailable):', e);
+  }
+}
+
+let saveDraftTimer = null;
+function scheduleSaveDraft(){
+  clearTimeout(saveDraftTimer);
+  saveDraftTimer = setTimeout(saveDraft, 700);
+}
+
+function loadDraft(){
+  try{
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw) return null;
+    const draft = JSON.parse(raw);
+    if(!draft || !draft.savedAt || (Date.now() - draft.savedAt) > DRAFT_TTL_MS){
+      localStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+    return draft;
+  } catch(e){
+    return null;
+  }
+}
+
+// Once cleared, ALSO stop any further saves for the rest of this page's
+// life (the "pagehide"/"visibilitychange" safety-net saves below would
+// otherwise silently resurrect the draft during the reload that follows
+// a "start fresh" click, since those fire unconditionally on unload).
+function clearDraft(){
+  draftSaveSuppressed = true;
+  clearTimeout(saveDraftTimer);
+  try{ localStorage.removeItem(DRAFT_KEY); } catch(e){}
+}
+
+function restoreDraft(draft){
+  DRAFT_FIELD_IDS.forEach(id => {
+    if(draft.fields && id in draft.fields) el[id].value = draft.fields[id];
+  });
+  el.openingCustom.hidden = (el.openingSelect.value !== '__custom__');
+
+  state.gender = draft.gender || 'male';
+  [...el.genderSwitch.children].forEach(b => b.classList.toggle('active', b.dataset.gender === state.gender));
+
+  state.relations = Array.isArray(draft.relations) && draft.relations.length ? draft.relations : DEFAULT_RELATIONS.map(r => ({...r}));
+  state.dirty = draft.dirty || state.dirty;
+  renderRelationForm();
+
+  if(draft.photo && draft.photo.dataUrl){
+    state.photo = draft.photo;
+    el.photoEditorImg.src = draft.photo.dataUrl;
+    el.photoZoom.value = draft.photo.zoom || 1;
+    el.removePhoto.hidden = false;
+    el.photoEditor.hidden = false;
+  }
+
+  renderCard();
+}
+
+function showDraftRestoredNotice(savedAt){
+  const minsAgo = Math.max(1, Math.round((Date.now() - savedAt) / 60000));
+  const notice = document.createElement('div');
+  notice.className = 'draft-notice';
+  notice.innerHTML = `
+    <span>تم استرجاع بياناتك المحفوظة تلقائيًا (قبل ${minsAgo} ${minsAgo === 1 ? 'دقيقة' : 'دقائق'}).</span>
+    <button type="button" id="startFreshBtn">بدء نعوة جديدة بدلًا منها</button>
+    <button type="button" id="dismissDraftNotice" aria-label="إغلاق">×</button>
+  `;
+  document.body.prepend(notice);
+  document.getElementById('dismissDraftNotice').addEventListener('click', () => notice.remove());
+  document.getElementById('startFreshBtn').addEventListener('click', () => {
+    clearDraft();
+    location.reload();
+  });
+}
+
+// Save on every render (covers virtually every change already, since
+// almost every input/action handler in this file ends by calling
+// renderCard()), plus immediately when the tab is hidden/closed —
+// exactly the moment before a mobile OS might reclaim the tab.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') saveDraft();
+});
+window.addEventListener('pagehide', saveDraft);
+
+function isDraftMeaningful(draft){
+  if(!draft) return false;
+  if(draft.fields && draft.fields.deceasedName && draft.fields.deceasedName.trim()) return true;
+  if(Array.isArray(draft.relations) && draft.relations.some(r => r.value && r.value.trim())) return true;
+  if(draft.photo && draft.photo.dataUrl) return true;
+  return false;
+}
+
+/* ============================================================
    BOOT
    ============================================================ */
 regenerateAll();
 renderCard();
 requestAnimationFrame(scalePreview);
+
+const existingDraft = loadDraft();
+if(isDraftMeaningful(existingDraft)){
+  restoreDraft(existingDraft);
+  showDraftRestoredNotice(existingDraft.savedAt);
+} else if(existingDraft){
+  try{ localStorage.removeItem(DRAFT_KEY); } catch(e){} // stale/empty entry, quiet cleanup only
+}
 
 })();
